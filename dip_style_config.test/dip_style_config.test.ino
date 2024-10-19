@@ -27,5 +27,3 @@ uint8_t readDipPins(uint8_t pins[]) {
   }
   return dipValue;
 }
-
-int digitalRead()
