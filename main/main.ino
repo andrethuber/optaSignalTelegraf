@@ -42,6 +42,7 @@ TODO:
   - Prevent sending packets too frequently, insted: delay packet and give a warning to operator (TXP). As opposed to current behavior of seting 'actLock'.
   - Logging
   - Remote error reporting (sms/email)
+  - Handle 'millis' overflow
 */
 
 bool blink = true;
