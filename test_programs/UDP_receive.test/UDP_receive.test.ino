@@ -17,7 +17,7 @@
 #include <EthernetUdp.h>
 
 // The IP address will be dependent on your local network:
-IPAddress ip(192, 168, 50, 3);
+IPAddress ip(192, 168, 50, 144);
 
 unsigned int localPort = 8888;      // local port to listen on
 
