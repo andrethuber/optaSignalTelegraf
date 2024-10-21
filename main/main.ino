@@ -1,10 +1,10 @@
 #define LENOF(array) (sizeof(array) / sizeof(array[0]))
 
-#define MAX_PING 100                // ms, Maximum permisseble delay from sending a telegraph packet to receive an acknowledgement.
-#define HEARTBEAT_RATE 1000         // ms, Time delay between sendig heartbeat packets.
-#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without reciving a heartbeat packets before locking.
+#define MAX_PING 100                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
+#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
 #define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 200         // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time of relays
+#define INPUTLOCK_DELAY 200         // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
 #define BLINK_LED LED_RESET         // pinId, The led used for indicating a local heartbeat
 #define BOUNCE_TIME 50              // ms, maximum possible bounce time for inputs
 
@@ -27,7 +27,7 @@
   't' = Telegraph packet
   'a' = "acknowledged", response to received 't' packet
   'b' = Aborted sending packet because bouncing detected
-  'i' = Aborted sending packet because 'inputLock' is true (usualy when reciving a signal)
+  'i' = Aborted sending packet because 'inputLock' is true (usually when receiving a signal)
   'e' = General error
   'h' = heartbeat, gets sent every ~1 sec
   'l' = sets 'actLock'
@@ -53,7 +53,7 @@ IPAddress ipLocal(192, 168, 50, 2);
 IPAddress ipRemote(192, 168, 50, 3);
 
 
-bool isWaitingForHeartbeat = true;  // Prevents the system from doing most tasks before getting a first heartbeat
+bool isWaitingForHeartbeat = true;  // Prevents the system from doing most tasks before getting the first heartbeat
 bool actLock = false;
 
 bool previousTelegraphSigIn;
@@ -139,14 +139,14 @@ void loop() {
 
   // Process receiving a telegraph signal (button press):
   bool telegraphSigIn = digitalRead(A0) | !digitalRead(BTN_USER);
-  if (telegraphSigIn > previousTelegraphSigIn) {  // If 'telegraphSigIn' has rissen
-    Serial.println(sendTelegraphPacket());        // Atepmts to send a telegraph packet, and prints the response.
+  if (telegraphSigIn > previousTelegraphSigIn) {  // If 'telegraphSigIn' has risen
+    Serial.println(sendTelegraphPacket());        // Attemps to send a telegraph packet, and prints the response.
   }
   previousTelegraphSigIn = telegraphSigIn;  // To detect a rising edge
 
 
 
-  // What to do when receive a udp packet:
+  // What to do when a udp packet is received:
   uint8_t packetSize = udp.parsePacket();
   if (packetSize) {
     udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
@@ -162,7 +162,7 @@ void loop() {
     if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                               // Process telegraph packet
     if (packetBuffer[0] == 'a') lastAcknowledgement = millis();                                           // Process acknowledgement packet
 
-  }  // end 'if (pakcetSize)'
+  }  // end 'if (packetSize)'
 
   if (millis() - lastHeartBeatSent > HEARTBEAT_RATE) {  // Sends heartbeats
     lastHeartBeatSent = millis();
@@ -216,7 +216,7 @@ char onReceiveTelegraphPacket() {
     throwError("WARN: Received two packets in too short of a time period!");
     return ('e');
   }
-  inputLock = true;  // To make sure we dont process the output signal as a input signal.
+  inputLock = true;  // To make sure we do not process the output signal as a input signal.
   digitalWrite(LED_D0, HIGH);
   digitalWrite(D0, HIGH);
   udpSend('a');
@@ -236,7 +236,7 @@ void onReceiveHeartbeat() {
 void throwError(char errorMessage[]) {
   actLock = true;
   Serial.println(errorMessage);
-  udpSend('e');  // Tell the paired station that we have experienced a error
+  udpSend('e');  // Tell the paired station that we have experienced an error
   Serial.println("Act lock has been enabled @");
   Serial.println(millis());
   digitalWrite(LED_D1, actLock);
