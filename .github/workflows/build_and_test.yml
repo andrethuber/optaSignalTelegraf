@@ -23,4 +23,22 @@ jobs:
           ./bin/arduino-cli core install arduino:mbed_opta
           arduino-cli compile -b arduino:mbed_opta:opta main/main.ino
 
+  pytest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup python
+        uses: actions/setup-python@v5
+
+      - name: Build C-extension
+        run: |
+          pip install pybind11
+          python setup.py build_ext --inplace
+          pip install .
+      - name: Test using pytest
+        run: |
+          pip install pytest
+          pytest -sv tests
 
