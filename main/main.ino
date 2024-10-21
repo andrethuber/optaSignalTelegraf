@@ -6,6 +6,7 @@
 #define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
 #define INPUTLOCK_DELAY 200         // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time of relays
 #define BLINK_LED LED_RESET         // pinId, The led used for indicating a local heartbeat
+#define BOUNCE_TIME 50              // ms, maximum possible bounce time for inputs
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -39,6 +40,7 @@
 TODO:
   - OTA
   - Prevent sending packets too frequently, insted: delay packet and give a warning to operator (TXP). As opposed to current behavior of seting 'actLock'.
+  - Logging
   - Remote error reporting (sms/email)
 */
 
@@ -151,14 +153,14 @@ void loop() {
     Serial.print("Received packet: ");
     Serial.println(packetBuffer);
 
-    if (packetSize > 1) setActLock("FATAL: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
+    if (packetSize > 1) throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
 
-    if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                                      // Process heartbeat
-    if (packetBuffer[0] == 'e' && !actLock) setActLock("ERROR: Paired station has experienced a error!");  // Process error pakcet exept if 'actLock' is on, to prevent the packets beeing sent back and fourth.
-    if (packetBuffer[0] == 'l') setActLock("Manually triggred actLock");                                   // For manually triggering act lock
-    if (packetBuffer[0] == 'r') releaseActLock();                                                          // For manually releasing act lock
-    if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                                // Process telegraph packet
-    if (packetBuffer[0] == 'a') lastAcknowledgement = millis();                                            // Process acknowledgement packet
+    if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                                     // Process heartbeat
+    if (packetBuffer[0] == 'e' && !actLock) throwError("WARN: Paired station has experienced a error!");  // Process error pakcet exept if 'actLock' is on, to prevent the packets beeing sent back and fourth.
+    if (packetBuffer[0] == 'l') throwError("WARN: Manually triggred actLock");                            // For manually triggering act lock
+    if (packetBuffer[0] == 'r') releaseActLock();                                                         // For manually releasing act lock
+    if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                               // Process telegraph packet
+    if (packetBuffer[0] == 'a') lastAcknowledgement = millis();                                           // Process acknowledgement packet
 
   }  // end 'if (pakcetSize)'
 
@@ -175,9 +177,9 @@ void loop() {
       digitalWrite(LED_D0, LOW);
       digitalWrite(D0, LOW);
     }
-    if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                            // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
-    if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT) setActLock("ERROR: Heartbeat lost!");                                    // Errors if does not receive any heatbeats in enough time
-    if (millis() - lastTelegraphPacket > MAX_PING && lastTelegraphPacket > lastAcknowledgement) setActLock("ERROR: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
+    if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                           // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
+    if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT) throwError("WARN: Heartbeat lost!");                                    // Errors if does not receive any heatbeats in enough time
+    if (millis() - lastTelegraphPacket > MAX_PING && lastTelegraphPacket > lastAcknowledgement) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
   }
 }
 
@@ -200,7 +202,7 @@ void udpSend(char code) {
 char sendTelegraphPacket() {
   if (actLock) return ('e');
   if (isWaitingForHeartbeat) return ('e');
-  if (millis() - lastTelegraphPacket < 50) return ('b');
+  if (millis() - lastTelegraphPacket < BOUNCE_TIME) return ('b');
   if (inputLock) return ('i');
   udpSend('t');
   lastTelegraphPacket = millis();
@@ -211,7 +213,7 @@ char onReceiveTelegraphPacket() {
   if (actLock) return ('e');
   if (isWaitingForHeartbeat) return ('e');
   if (inputLock) {
-    setActLock("ERROR: Received two packets in too short of a time period!");
+    throwError("WARN: Received two packets in too short of a time period!");
     return ('e');
   }
   inputLock = true;  // To make sure we dont process the output signal as a input signal.
@@ -231,14 +233,14 @@ void onReceiveHeartbeat() {
   }
 }
 
-void setActLock(char errorMessage[]) {
+void throwError(char errorMessage[]) {
   actLock = true;
   Serial.println(errorMessage);
   udpSend('e');  // Tell the paired station that we have experienced a error
   Serial.println("Act lock has been enabled @");
   Serial.println(millis());
-  digitalWrite(LED_D1, HIGH);
-  digitalWrite(D1, HIGH);
+  digitalWrite(LED_D1, actLock);
+  digitalWrite(D1, actLock);
 }
 
 void releaseActLock() {
