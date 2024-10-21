@@ -1,0 +1,26 @@
+name: Compile code
+
+on:
+  push:
+    branches:
+      main
+  pull_request:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Arduino compiler and compile
+        run: |
+          export PATH=$(pwd)/bin:$PATH
+          # Download executable file arduino-cli and put it in bin/
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          # Needed libraries for Arduino Octa:
+          ./bin/arduino-cli core install arduino:mbed_opta
+          arduino-cli compile -b arduino:mbed_opta:opta main/main.ino
+
+
