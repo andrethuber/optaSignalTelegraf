@@ -4,9 +4,9 @@
 #define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
 #define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
 #define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 200         // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
+#define INPUTLOCK_DELAY 20          // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
 #define BLINK_LED LED_RESET         // pinId, The led used for indicating a local heartbeat
-#define BOUNCE_TIME 50              // ms, maximum possible bounce time for inputs
+#define BOUNCE_TIME 20              // ms, maximum possible bounce time for inputs
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
