@@ -21,10 +21,6 @@
   Signal - The electrical signal that we are simulating.
   Packet - The udp packet that travels between stations.
   Controller - The Arduino Opta plc that runs this code.
-  Act Lock - A status that if set:
-    Prevents ringing the bells.
-    Prevents sending telegraph packets.
-    Prevents sending heartbeat packets.
 
   't' = Telegraph packet
   'a' = "acknowledged", response to received 't' packet
@@ -32,12 +28,9 @@
   'i' = Aborted sending packet because 'inputLock' is true (usually when receiving a signal)
   'e' = General error
   'h' = heartbeat, gets sent every ~1 sec
-  'l' = sets 'actLock'
-  'r' = release 'actLock'
 
   Q1 - 'telegraphSigOut'
-  Q2 - 'actLock'
-  Q3 - '!hasReceivedHeartbeat'
+  Q2 - 'warningLamp'
 
 TODO:
   - OTA
@@ -56,8 +49,7 @@ IPAddress ipLocal(192, 168, 50, 2);
 IPAddress ipRemote(192, 168, 50, 3);
 
 
-bool isWaitingForHeartbeat = true;  // Prevents the system from doing most tasks before getting the first heartbeat
-bool actLock = false;
+bool warningLamp = true;
 
 bool previousTelegraphSigIn;
 bool inputLock;
@@ -115,22 +107,21 @@ void setup() {
   pinMode(A0, INPUT);
   pinMode(BTN_USER, INPUT);
 
+  // Error acknowledge button:
+  pinMode(A1, INPUT);
+
   // Telegraph signal out:
   pinMode(LED_D0, OUTPUT);
   pinMode(D0, OUTPUT);
 
-  // Act lock:
+  // Warning lamp:
   pinMode(LED_D1, OUTPUT);
   pinMode(D1, OUTPUT);
 
   // Blink led is handled at start of setup.
 
-
-  digitalWrite(LED_D1, actLock);  // Updates act lock leds
-  digitalWrite(D1, actLock);
-
-  digitalWrite(LED_D2, isWaitingForHeartbeat);
-  digitalWrite(D2, isWaitingForHeartbeat);
+  digitalWrite(LED_D1, warningLamp);  // Updates warning lamp leds
+  digitalWrite(D1, warningLamp);
 
   digitalWrite(BLINK_LED, LOW);  // Rapidly blink BLINK_LED at end of setup
   delay(50);
@@ -147,6 +138,9 @@ void loop() {
   }
   previousTelegraphSigIn = telegraphSigIn;  // To detect a rising edge
 
+  // Process 'errorAckBtn' press:
+  if (digitalRead(A1) && warningLamp) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
+
 
 
   // What to do when a udp packet is received:
@@ -158,32 +152,25 @@ void loop() {
 
     if (packetSize > 1) throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
 
-    if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                                     // Process heartbeat
-    if (packetBuffer[0] == 'e' && !actLock) throwError("WARN: Paired station has experienced a error!");  // Process error pakcet exept if 'actLock' is on, to prevent the packets beeing sent back and fourth.
-    if (packetBuffer[0] == 'l') throwError("WARN: Manually triggred actLock");                            // For manually triggering act lock
-    if (packetBuffer[0] == 'r') releaseActLock();                                                         // For manually releasing act lock
-    if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                               // Process telegraph packet
-    if (packetBuffer[0] == 'a') lastAcknowledgement = millis();                                           // Process acknowledgement packet
-
-  }  // end 'if (packetSize)'
+    if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                         // Process heartbeat
+    if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error pakcet
+    if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                   // Process telegraph packet
+    if (packetBuffer[0] == 'a') lastAcknowledgement = millis();                               // Process acknowledgement packet
+  }                                                                                           // end 'if (packetSize)'
 
   if (millis() - lastHeartBeatSent > HEARTBEAT_RATE) {  // Sends heartbeats
     lastHeartBeatSent = millis();
-    if (!actLock) udpSend('h');      // Do not send if act lock is on
+    udpSend('h');
     digitalWrite(BLINK_LED, blink);  // Toggle blink led
     blink = !blink;
   }
-
-
-  if (!actLock && !isWaitingForHeartbeat) {                   // Only act if actLock is true, or if has not yet received its first heartbeat.
-    if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME) {  // Resets 'telegraphSigOut' relay
-      digitalWrite(LED_D0, LOW);
-      digitalWrite(D0, LOW);
-    }
-    if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                           // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
-    if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT) throwError("WARN: Heartbeat lost!");                                    // Errors if does not receive any heatbeats in enough time
-    if (millis() - lastTelegraphPacket > MAX_PING && lastTelegraphPacket > lastAcknowledgement) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
+  if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME) {  // Resets 'telegraphSigOut' relay
+    digitalWrite(LED_D0, LOW);
+    digitalWrite(D0, LOW);
   }
+  if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                           // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
+  if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                                    // Errors if does not receive any heatbeats in enough time
+  if (millis() - lastTelegraphPacket > MAX_PING && lastTelegraphPacket > lastAcknowledgement && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
 }
 
 
@@ -196,8 +183,6 @@ void udpSend(char code) {
 }
 
 char sendTelegraphPacket() {
-  if (actLock) return ('e');
-  if (isWaitingForHeartbeat) return ('e');
   if (millis() - lastTelegraphPacket < BOUNCE_TIME) return ('b');
   if (inputLock) return ('i');
   udpSend('t');
@@ -206,8 +191,6 @@ char sendTelegraphPacket() {
 }
 
 char onReceiveTelegraphPacket() {
-  if (actLock) return ('e');
-  if (isWaitingForHeartbeat) return ('e');
   if (inputLock) {
     throwError("WARN: Received two packets in too short of a time period!");
     return ('e');
@@ -222,32 +205,25 @@ char onReceiveTelegraphPacket() {
 
 void onReceiveHeartbeat() {
   lastHeartBeatReceived = millis();
-  if (isWaitingForHeartbeat) {
-    isWaitingForHeartbeat = false;
-    digitalWrite(LED_D2, isWaitingForHeartbeat);
-    digitalWrite(D2, isWaitingForHeartbeat);
-  }
 }
 
 void throwError(char errorMessage[]) {
-  actLock = true;
+  if (warningLamp) return;
+  warningLamp = true;
   Serial.println(errorMessage);
   udpSend('e');  // Tell the paired station that we have experienced an error
-  Serial.println("Act lock has been enabled @");
+  Serial.println("There has been a error @");
   Serial.println(millis());
-  digitalWrite(LED_D1, actLock);
-  digitalWrite(D1, actLock);
+  digitalWrite(LED_D1, warningLamp);
+  digitalWrite(D1, warningLamp);
 }
 
-void releaseActLock() {
-  actLock = false;
-  isWaitingForHeartbeat = true;
-  Serial.println("Act lock has been remotely disabled @");
+void onErrorAck() {
+  warningLamp = false;
+  Serial.println("Error has been acknowledged @");
   Serial.println(millis());
-  digitalWrite(LED_D1, actLock);
-  digitalWrite(D1, actLock);
-  digitalWrite(LED_D2, isWaitingForHeartbeat);
-  digitalWrite(D2, isWaitingForHeartbeat);
+  digitalWrite(LED_D1, warningLamp);
+  digitalWrite(D1, warningLamp);
 }
 
 void initDipPins(uint8_t pins[], uint8_t count) {
