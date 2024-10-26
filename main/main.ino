@@ -175,10 +175,11 @@ void loop() {
 
 
 void udpSend(char code) {
-  udp.beginPacket(ipRemote, PORT);
-  udp.write(code);
-  udp.endPacket();
-  Serial.print("Sent packet: ");
+  Serial.print("Sent packet ");
+  Serial.print(udp.beginPacket(ipRemote, PORT));
+  Serial.print(udp.write(code));
+  Serial.print(udp.endPacket());
+  Serial.print(": ");
   Serial.println(code);
 }
 
