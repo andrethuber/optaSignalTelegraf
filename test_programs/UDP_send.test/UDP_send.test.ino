@@ -35,7 +35,7 @@ void setup() {
   Ethernet.begin(ip);
 
   // Open serial communications:
-  Serial.begin(57600);
+  Serial.begin(9600);
 
   // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
@@ -61,7 +61,8 @@ void loop() {
   bool buttonState = !digitalRead(BTN_USER);
   Serial.println(buttonState);
   if(buttonState) {
-    Udp.beginPacket({192, 168, 50, 3}, 8888);
+    Udp.beginPacket({192, 168, 50, 144}, 8888);
+    Udp.write("grsgfse", 7);
     Udp.endPacket();
     digitalWrite(LED_D0, true);
     digitalWrite(D0, true);
