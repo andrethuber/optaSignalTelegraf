@@ -146,8 +146,10 @@ void loop() {
   // What to do when a udp packet is received:
   uint8_t packetSize = udp.parsePacket();
   if (packetSize) {
-    udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
-    Serial.print("Received packet: ");
+    Serial.print("Received packet ");
+    Serial.print(packetSize);
+    Serial.print(udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE));
+    Serial.print(": ");
     Serial.println(packetBuffer);
 
     if (packetSize > 1) throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
