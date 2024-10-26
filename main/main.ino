@@ -148,7 +148,7 @@ void loop() {
   if (packetSize) {
     Serial.print("Received packet ");
     Serial.print(packetSize);
-    Serial.print(udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE));
+    Serial.print(udp.read(packetBuffer, packetSize));
     Serial.print(": ");
     Serial.println(packetBuffer);
 
