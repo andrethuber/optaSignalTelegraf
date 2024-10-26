@@ -211,10 +211,9 @@ void onReceiveHeartbeat() {
 }
 
 void throwError(char errorMessage[]) {
-  if (warningLamp) return;
+  if (!warningLamp) udpSend('e');  // Tell the paired station that we have experienced an error
   warningLamp = true;
   Serial.println(errorMessage);
-  udpSend('e');  // Tell the paired station that we have experienced an error
   Serial.println("There has been a error @");
   Serial.println(millis());
   digitalWrite(LED_D1, warningLamp);
