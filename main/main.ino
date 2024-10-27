@@ -73,8 +73,6 @@ void setup() {
   digitalWrite(BLINK_LED, HIGH);  // Enable BLINK_LED led at start of setup
 
   Serial.begin(9600);
-  while (!Serial)  // Wait for serial, remove before prod
-    ;
   Serial.println("t1");
 
   initDipPins(dipPins, LENOF(dipPins));
