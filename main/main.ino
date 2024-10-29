@@ -56,6 +56,7 @@ bool inputLock;
 
 unsigned long lastTelegraphPacket;
 unsigned long lastAcknowledgement;
+uint16_t unAcknowledgedTelegraphPackets;
 
 unsigned long lastTelegraphSigOut;
 
@@ -155,7 +156,7 @@ void loop() {
     if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                         // Process heartbeat
     if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error pakcet
     if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                   // Process telegraph packet
-    if (packetBuffer[0] == 'a') lastAcknowledgement = millis();                               // Process acknowledgement packet
+    if (packetBuffer[0] == 'a') onRecieveAcknowledgement();                                   // Process acknowledgement packet
   }                                                                                           // end 'if (packetSize)'
 
   if (millis() - lastHeartBeatSent > HEARTBEAT_RATE) {  // Sends heartbeats
@@ -168,9 +169,9 @@ void loop() {
     digitalWrite(LED_D0, LOW);
     digitalWrite(D0, LOW);
   }
-  if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                           // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
-  if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                                    // Errors if does not receive any heatbeats in enough time
-  if (millis() - lastTelegraphPacket > MAX_PING && lastTelegraphPacket > lastAcknowledgement && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
+  if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
+  if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
+  if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
 }
 
 
@@ -186,6 +187,8 @@ void udpSend(char code) {
 char sendTelegraphPacket() {
   if (millis() - lastTelegraphPacket < BOUNCE_TIME) return ('b');
   if (inputLock) return ('i');
+  unAcknowledgedTelegraphPackets++;
+  Serial.println(unAcknowledgedTelegraphPackets);
   udpSend('t');
   lastTelegraphPacket = millis();
   return ('t');
@@ -204,6 +207,12 @@ char onReceiveTelegraphPacket() {
   return ('a');
 }
 
+void onRecieveAcknowledgement() {
+  lastAcknowledgement = millis();
+  unAcknowledgedTelegraphPackets--;
+  Serial.println(unAcknowledgedTelegraphPackets);
+}
+
 void onReceiveHeartbeat() {
   lastHeartBeatReceived = millis();
 }
@@ -220,6 +229,7 @@ void throwError(char errorMessage[]) {
 
 void onErrorAck() {
   warningLamp = false;
+  unAcknowledgedTelegraphPackets = 0;
   Serial.println("Error has been acknowledged @");
   Serial.println(millis());
   digitalWrite(LED_D1, warningLamp);
