@@ -38,6 +38,9 @@ TODO:
   - Logging
   - Remote error reporting (sms/email)
   - Handle 'millis' overflow
+  - Change IP system to allow each station (not controller or pair) to be on diffrent layer 3 networks.
+  - Insted of setting a warning lamp on errors, insted ring the bells 6 times repetedly.
+  - Broadcast phone ringing signals to all stations.
 */
 
 bool blink = true;
