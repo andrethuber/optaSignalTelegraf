@@ -45,7 +45,7 @@ TODO:
 
 bool blink = true;
 
-uint8_t dipPins[] = { A2, A3, A4, A5, A6, A7 };  // Pins used to configure IP address (like a dip switch)
+uint8_t dipPins[] = { A3, A4, A5, A6, A7 };  // Pins used to configure IP address (like a dip switch)
 
 // Default IP adresses for the pair (4th octet gets overwritten in 'setup'):
 IPAddress ipLocal(192, 168, 50, 2);
