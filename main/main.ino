@@ -20,7 +20,8 @@
 
   Signal - The electrical signal that we are simulating.
   Packet - The udp packet that travels between stations.
-  Controller - The Arduino Opta plc that runs this code.
+  Controller - The Arduino Opta plc that runs this code. Each station has 1 or 2 controllers.
+  (controller) ID - uniqe ID/iterator for each controller. This ID starts at 3 for the eastern most controller, and iterates westwords through all controllers.
 
   't' = Telegraph packet
   'a' = "acknowledged", response to received 't' packet
@@ -47,9 +48,35 @@ bool blink = true;
 
 uint8_t dipPins[] = { A3, A4, A5, A6, A7 };  // Pins used to configure IP address (like a dip switch)
 
-// Default IP adresses for the pair (4th octet gets overwritten in 'setup'):
-IPAddress ipLocal(192, 168, 50, 2);
-IPAddress ipRemote(192, 168, 50, 3);
+enum controllers {  //
+  null,
+  testA,
+  testB,
+  garnesB,
+  arnaA,
+  arnaB,
+  haukelandA
+};
+
+IPAddress ipLocal;
+IPAddress ipRemote;
+
+IPAddress ipAddresses[] = {
+  { 0, 0, 0, 0 },        // Null IP address
+  { 192, 168, 40, 60 },  // Test A (to TestB)
+  { 192, 168, 40, 61 },  // Test B (to TestA)
+  { 192, 168, 50, 61 },  // Garnes B (to Arna A)
+  { 192, 168, 53, 60 },  // Arna A (to Garnes B)
+  { 192, 168, 51, 62 },  // Arna B (to Haukeland A)
+  { 192, 168, 52, 60 }   // Haukeland A (to Arna B)
+};
+
+const uint8_t pairedControllers[][2]{ // A table to define pairs
+                                      { null, null },
+                                      { testA, testB },
+                                      { garnesB, arnaA },
+                                      { arnaB, haukelandA }
+};  // (Dont argue with the linter)
 
 
 bool warningLamp = true;
@@ -85,8 +112,16 @@ void setup() {
 
   // Figure out local IP and IP of paired controller:
   uint8_t dipValue = readDipPins(dipPins, LENOF(dipPins));  // Decimal interpretation of dip pins
-  ipLocal[3] = getIpsFromDip(dipValue, 1);                  // Get local IP
-  ipRemote[3] = getIpsFromDip(dipValue, 0);                 // Get remote IP
+  Serial.print("dipValue = ");
+  Serial.println(dipValue);
+
+  if (dipValue > LENOF(ipAddresses)) {
+    dipValue = 0;
+    throwError("WARN: 'dipValue' out of bounds!");
+  }
+
+  ipLocal = ipAddresses[dipValue];               // Get local IP
+  ipRemote = ipAddresses[findPaired(dipValue)];  // Get remote IP
 
   Serial.print("ipLocal = ");
   Serial.println(ipLocal);
@@ -255,4 +290,34 @@ uint8_t readDipPins(uint8_t pins[], uint8_t count) {
     value = value + pow(2, count - 1 - i) * states[i];
   }
   return value;
+}
+
+uint8_t findPaired(uint8_t localID) {  // Figure out the ID of the controller in the same pair as this controller
+  Serial.print("LocalID: ");
+  Serial.println(localID);  // 'dipValue'
+
+  for (uint8_t i1 = 0; i1 < LENOF(pairedControllers); i1++) {  // for each pair
+    Serial.print("t5:");
+    Serial.println(i1);
+
+    for (bool i2 = 0;; i2++) {  // for each controller in a pair
+      Serial.print("t6:");
+      Serial.println(i2);
+
+      Serial.print("t7:");
+      Serial.println(pairedControllers[i1][i2]);
+
+      if (pairedControllers[i1][i2] == localID) {
+        Serial.print("t8:");
+        Serial.print(i1);
+        Serial.print(":");
+        Serial.print(i2);
+        Serial.print(":");
+        Serial.println(!i2);
+        return (pairedControllers[i1][!i2]);
+      }
+      if (i2) break;  // if has done 2. loop
+    }
+  }
+  return (0);
 }
