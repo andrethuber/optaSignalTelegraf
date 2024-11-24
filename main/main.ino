@@ -1,12 +1,17 @@
 #define LENOF(array) (sizeof(array) / sizeof(array[0]))
 
-#define MAX_PING 100                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
-#define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
-#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
-#define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 20          // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
-#define BLINK_LED LED_RESET         // pinId, The led used for indicating a local heartbeat
-#define BOUNCE_TIME 20              // ms, maximum possible bounce time for inputs
+#define PHONE_SIG_IN_PIN A2   // Connected to the output of the spindle
+#define PHONE_SIG_OUT_PIN D2  // Connected to the phone bell
+#define PHONE_SIG_OUT_PIN_LED LED_D2
+
+#define MAX_PING 100                   // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define HEARTBEAT_RATE 1000            // ms, Time delay between sending heartbeat packets.
+#define MAX_TIME_NO_HEARTBEAT 5000     // ms, Time allowed without receiving heartbeat packets before locking.
+#define T_SIGNAL_ON_TIME 100           // ms, Time delay between closing and opening 'telegraphSigOut' relay
+#define INPUTLOCK_DELAY 20             // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
+#define BLINK_LED LED_RESET            // pinId, The led used for indicating a local heartbeat
+#define BOUNCE_TIME 20                 // ms, maximum possible bounce time for inputs
+#define PHONE_PACKET_REFRESH_DELAY 50  // ms,  Will resend a phone packet after this timeout. Without this timeout its possible for all phones to be left ringing continustly if phone signal in goes low whilst bounce timeout for rising has not yet expired.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -22,6 +27,7 @@
   Packet - The udp packet that travels between stations.
   Controller - The Arduino Opta plc that runs this code. Each station has 1 or 2 controllers.
   (controller) ID - uniqe ID/iterator for each controller. This ID starts at 3 for the eastern most controller, and iterates westwords through all controllers.
+  Phone spindle - Hand crack that operator spins in order to dial the code for another station.
 
   't' = Telegraph packet
   'a' = "acknowledged", response to received 't' packet
@@ -83,15 +89,20 @@ bool warningLamp = true;
 
 bool previousTelegraphSigIn;
 bool inputLock;
+bool previousPhoneSigIn;
+bool phoneSigOut;
 
 unsigned long lastTelegraphPacket;
 unsigned long lastAcknowledgement;
 uint16_t unAcknowledgedTelegraphPackets;
+unsigned long lastPhonePacket;
+bool hasRefreshedPhonePakcet;
 
 unsigned long lastTelegraphSigOut;
 
 unsigned long lastHeartBeatReceived;
 unsigned long lastHeartBeatSent;
+
 
 
 
@@ -157,6 +168,14 @@ void setup() {
   pinMode(LED_D1, OUTPUT);
   pinMode(D1, OUTPUT);
 
+  // Phone in/out:
+  pinMode(PHONE_SIG_IN_PIN, INPUT);
+  pinMode(PHONE_SIG_OUT_PIN, OUTPUT);
+  pinMode(PHONE_SIG_OUT_PIN_LED, OUTPUT);
+
+  previousPhoneSigIn = analogRead(PHONE_SIG_IN_PIN) > 0;  // These 2 lines are for edge case where the phone spindle is spinning while controller is booting
+  if (analogRead(PHONE_SIG_IN_PIN) > 0) throwError("WARN: Phone signal in is high at boot!");
+
   // Blink led is handled at start of setup.
 
   digitalWrite(LED_D1, warningLamp);  // Updates warning lamp leds
@@ -176,6 +195,13 @@ void loop() {
     Serial.println(sendTelegraphPacket());        // Attemps to send a telegraph packet, and prints the response.
   }
   previousTelegraphSigIn = telegraphSigIn;  // To detect a rising edge
+
+  // Process receiving a phone signal (spindle):
+  bool phoneSigIn = analogRead(PHONE_SIG_IN_PIN) > 100;
+  if (phoneSigIn != previousPhoneSigIn) {         // If 'phoneSigIn' has changed
+    Serial.println(sendPhonePacket(phoneSigIn));  // Attemps to send a telegraph packet, and prints the response.
+  }
+  previousPhoneSigIn = phoneSigIn;  // To detect a rising edge
 
   // Process 'errorAckBtn' press:
   if (digitalRead(A1) && warningLamp) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
@@ -197,6 +223,8 @@ void loop() {
     if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error pakcet
     if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                   // Process telegraph packet
     if (packetBuffer[0] == 'a') onRecieveAcknowledgement();                                   // Process acknowledgement packet
+    if (packetBuffer[0] == 'P') phoneSigOut = true;                                           // Close phone bell relay
+    if (packetBuffer[0] == 'p') phoneSigOut = false;                                          // Open phone bell relay
   }                                                                                           // end 'if (packetSize)'
 
   if (millis() - lastHeartBeatSent > HEARTBEAT_RATE) {  // Sends heartbeats
@@ -212,6 +240,14 @@ void loop() {
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
+  if (millis() - lastPhonePacket > PHONE_PACKET_REFRESH_DELAY && hasRefreshedPhonePakcet) {                                                       // Send 'P' if phone spindle is still spinning and 'p' if is still stopped.
+    Serial.println("Refreshed phone signal");
+    udpSendAll(phoneSigOut ? 'P' : 'p');
+    hasRefreshedPhonePakcet = true;
+  }
+
+  digitalWrite(PHONE_SIG_OUT_PIN, phoneSigOut);  // Update pins to reflect internal state variables
+  digitalWrite(PHONE_SIG_OUT_PIN_LED, phoneSigOut);
 }
 
 
@@ -224,6 +260,16 @@ void udpSend(char code) {
   Serial.println(code);
 }
 
+void udpSendAll(char code) {
+  for (uint8_t i = 1; i < LENOF(ipAddresses); i++) {
+    Serial.print(udp.beginPacket(ipAddresses[i], PORT));
+    Serial.print(udp.write(code));
+    Serial.print(udp.endPacket());
+    Serial.print("; ");
+  }
+  Serial.println();
+}
+
 char sendTelegraphPacket() {
   if (millis() - lastTelegraphPacket < BOUNCE_TIME) return ('b');
   if (inputLock) return ('i');
@@ -232,6 +278,14 @@ char sendTelegraphPacket() {
   udpSend('t');
   lastTelegraphPacket = millis();
   return ('t');
+}
+
+char sendPhonePacket(bool isHigh) {
+  if (millis() - lastPhonePacket < BOUNCE_TIME) return ('b');
+  udpSendAll(isHigh ? 'P' : 'p');  // Send 'P' if phone spindle has started spinning and 'p' if has stopped spinning.
+  lastPhonePacket = millis();
+  hasRefreshedPhonePakcet = false;
+  return (isHigh ? 'P' : 'p');
 }
 
 char onReceiveTelegraphPacket() {
