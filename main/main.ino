@@ -4,14 +4,15 @@
 #define PHONE_SIG_OUT_PIN D2  // Connected to the phone bell
 #define PHONE_SIG_OUT_PIN_LED LED_D2
 
-#define MAX_PING 100                   // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
-#define HEARTBEAT_RATE 1000            // ms, Time delay between sending heartbeat packets.
-#define MAX_TIME_NO_HEARTBEAT 5000     // ms, Time allowed without receiving heartbeat packets before locking.
-#define T_SIGNAL_ON_TIME 100           // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 20             // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
-#define BLINK_LED LED_RESET            // pinId, The led used for indicating a local heartbeat
-#define BOUNCE_TIME 20                 // ms, maximum possible bounce time for inputs
-#define PHONE_PACKET_REFRESH_DELAY 50  // ms,  Will resend a phone packet after this timeout. Without this timeout its possible for all phones to be left ringing continustly if phone signal in goes low whilst bounce timeout for rising has not yet expired.
+#define MAX_PING 100                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
+#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
+#define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
+#define INPUTLOCK_DELAY 20          // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
+#define BLINK_LED LED_RESET         // pinId, The led used for indicating a local heartbeat
+#define BOUNCE_TIME 20              // ms, maximum possible bounce time for inputs
+#define PHONE_SIG_THRESHOLD 100     // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
+#define PHONE_SIG_SAMPLE_RATE 50    // ms, Sample rate for phone signal.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -95,8 +96,7 @@ bool phoneSigOut;
 unsigned long lastTelegraphPacket;
 unsigned long lastAcknowledgement;
 uint16_t unAcknowledgedTelegraphPackets;
-unsigned long lastPhonePacket;
-bool hasRefreshedPhonePakcet;
+unsigned long lastPhoneSigSample;
 
 unsigned long lastTelegraphSigOut;
 
@@ -173,8 +173,8 @@ void setup() {
   pinMode(PHONE_SIG_OUT_PIN, OUTPUT);
   pinMode(PHONE_SIG_OUT_PIN_LED, OUTPUT);
 
-  previousPhoneSigIn = analogRead(PHONE_SIG_IN_PIN) > 0;  // These 2 lines are for edge case where the phone spindle is spinning while controller is booting
-  if (analogRead(PHONE_SIG_IN_PIN) > 0) throwError("WARN: Phone signal in is high at boot!");
+  udpSendAll(analogRead(PHONE_SIG_IN_PIN) > PHONE_SIG_THRESHOLD ? 'P' : 'p');  // Send 'P' if phone spindle is spinning and 'p' if not spinning.
+  if (analogRead(PHONE_SIG_IN_PIN) > PHONE_SIG_THRESHOLD) throwError("WARN: Phone signal in is high at boot!");
 
   // Blink led is handled at start of setup.
 
@@ -197,11 +197,15 @@ void loop() {
   previousTelegraphSigIn = telegraphSigIn;  // To detect a rising edge
 
   // Process receiving a phone signal (spindle):
-  bool phoneSigIn = analogRead(PHONE_SIG_IN_PIN) > 100;
-  if (phoneSigIn != previousPhoneSigIn) {         // If 'phoneSigIn' has changed
-    Serial.println(sendPhonePacket(phoneSigIn));  // Attemps to send a telegraph packet, and prints the response.
+  bool phoneSigIn;
+  if (millis() - lastPhoneSigSample > PHONE_SIG_SAMPLE_RATE) {  // Sample phone signal evry ~50ms
+    phoneSigIn = analogRead(PHONE_SIG_IN_PIN) > PHONE_SIG_THRESHOLD;
+    if (phoneSigIn != previousPhoneSigIn) {  // If 'phoneSigIn' has changed
+      udpSendAll(phoneSigIn ? 'P' : 'p');    // Send 'P' if phone spindle has started spinning and 'p' if has stopped spinning.
+      lastPhoneSigSample = millis();
+    }
+    previousPhoneSigIn = phoneSigIn;  // To detect a rising edge
   }
-  previousPhoneSigIn = phoneSigIn;  // To detect a rising edge
 
   // Process 'errorAckBtn' press:
   if (digitalRead(A1) && warningLamp) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
@@ -240,11 +244,6 @@ void loop() {
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
-  if (millis() - lastPhonePacket > PHONE_PACKET_REFRESH_DELAY && hasRefreshedPhonePakcet) {                                                       // Send 'P' if phone spindle is still spinning and 'p' if is still stopped.
-    Serial.println("Refreshed phone signal");
-    udpSendAll(phoneSigOut ? 'P' : 'p');
-    hasRefreshedPhonePakcet = true;
-  }
 
   digitalWrite(PHONE_SIG_OUT_PIN, phoneSigOut);  // Update pins to reflect internal state variables
   digitalWrite(PHONE_SIG_OUT_PIN_LED, phoneSigOut);
@@ -261,6 +260,9 @@ void udpSend(char code) {
 }
 
 void udpSendAll(char code) {
+  Serial.print("Sent pakcet: ");
+  Serial.print(code);
+  Serial.print("; ");
   for (uint8_t i = 1; i < LENOF(ipAddresses); i++) {
     Serial.print(udp.beginPacket(ipAddresses[i], PORT));
     Serial.print(udp.write(code));
@@ -278,14 +280,6 @@ char sendTelegraphPacket() {
   udpSend('t');
   lastTelegraphPacket = millis();
   return ('t');
-}
-
-char sendPhonePacket(bool isHigh) {
-  if (millis() - lastPhonePacket < BOUNCE_TIME) return ('b');
-  udpSendAll(isHigh ? 'P' : 'p');  // Send 'P' if phone spindle has started spinning and 'p' if has stopped spinning.
-  lastPhonePacket = millis();
-  hasRefreshedPhonePakcet = false;
-  return (isHigh ? 'P' : 'p');
 }
 
 char onReceiveTelegraphPacket() {
