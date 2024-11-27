@@ -229,7 +229,7 @@ void loop() {
     if (packetSize > 1) throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
 
     if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                         // Process heartbeat
-    if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error pakcet
+    if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error packet
     if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                   // Process telegraph packet
     if (packetBuffer[0] == 'a') onRecieveAcknowledgement();                                   // Process acknowledgement packet
     if (packetBuffer[0] == 'P') phoneSigOut = true;                                           // Close phone bell relay
@@ -265,7 +265,7 @@ void udpSend(char code) {
 }
 
 void udpSendAll(char code) {
-  Serial.print("Sent pakcet: ");
+  Serial.print("Sent packet: ");
   Serial.print(code);
   Serial.print("; ");
   for (uint8_t i = 1; i < LENOF(ipAddresses); i++) {
