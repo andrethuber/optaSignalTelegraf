@@ -17,3 +17,4 @@ extern "C" {
 #include <pybind11/pybind11.h>
 #include "../main/library.c"
 
+PYBIND11_MODULE(library, m) {}
