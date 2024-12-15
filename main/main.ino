@@ -14,6 +14,7 @@
 #define PHONE_SIG_THRESHOLD 100                       // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
 #define PHONE_SIG_SAMPLE_RATE 50                      // ms, Sample rate for phone signal.
 #define TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK 5000  // ms, duration of telegraph sig in for it to count as eorror ack.
+#define WARNING_BELL_RATE 500                         // ms, rate of rings for warning of errors.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -50,6 +51,8 @@ TODO:
   - Change IP system to allow each station (not controller or pair) to be on diffrent layer 3 networks.
   - Insted of setting a warning lamp on errors, insted ring the bells 6 times repetedly.
   - Broadcast phone ringing signals to all stations.
+
+  - Fix bug where t-sig can ack error instanly if recives t-pkt at the same time as rising edge.
 */
 
 bool blink = true;
@@ -102,6 +105,7 @@ bool phoneSigOut;
 unsigned long lastTelegraphPacket;
 unsigned long lastAcknowledgement;
 uint16_t unAcknowledgedTelegraphPackets;
+uint8_t remainingErrorRings;  // How many rings of the bell remains for warning of an error
 unsigned long lastPhoneSigSample;
 
 unsigned long lastTelegraphSigOut;
@@ -250,6 +254,12 @@ void loop() {
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
+  if (millis() - lastTelegraphSigOut > WARNING_BELL_RATE && remainingErrorRings > 0) {
+    sendTelegraphSignal();
+    remainingErrorRings--;
+    Serial.print("'ramainingErrorRings' = ");
+    Serial.println(remainingErrorRings);
+  }
 
   digitalWrite(PHONE_SIG_OUT_PIN, phoneSigOut);  // Update pins to reflect internal state variables
   digitalWrite(PHONE_SIG_OUT_PIN_LED, phoneSigOut);
@@ -293,12 +303,16 @@ char onReceiveTelegraphPacket() {
     throwError("WARN: Received two packets in too short of a time period!");
     return ('e');
   }
+  sendTelegraphSignal();
+  udpSend('a');
+  return ('a');
+}
+
+void sendTelegraphSignal() {
   inputLock = true;  // To make sure we do not process the output signal as a input signal.
   digitalWrite(LED_D0, HIGH);
   digitalWrite(D0, HIGH);
-  udpSend('a');
   lastTelegraphSigOut = millis();
-  return ('a');
 }
 
 void onRecieveAcknowledgement() {
@@ -312,7 +326,12 @@ void onReceiveHeartbeat() {
 }
 
 void throwError(char errorMessage[]) {
-  if (!warningLamp) udpSend('e');  // Tell the paired station that we have experienced an error
+  if (!warningLamp) {
+    udpSend('e');  // Tell the paired station that we have experienced an error
+    Serial.print("'ramainingErrorRings' = ");
+    remainingErrorRings = 9;
+    Serial.println(remainingErrorRings);
+  }
   warningLamp = true;
   Serial.println(errorMessage);
   Serial.println("There has been a error @");
