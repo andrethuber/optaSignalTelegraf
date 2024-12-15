@@ -77,7 +77,7 @@ IPAddress ipAddresses[] = {
   { 192, 168, 40, 61 },  // Test B (to TestA)
   { 192, 168, 50, 60 },  // Garnes A (to Haukeland B)
   { 192, 168, 50, 61 },  // Garnes B (to Arna A)
-  { 192, 168, 53, 60 },  // Arna A (to Garnes B)
+  { 192, 168, 51, 60 },  // Arna A (to Garnes B)
   { 192, 168, 51, 62 },  // Arna B (to Haukeland A)
   { 192, 168, 52, 60 },  // Haukeland A (to Arna B)
   { 192, 168, 52, 61 }   // Haulekand B (to Garnes A)
