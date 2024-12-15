@@ -300,7 +300,7 @@ char sendTelegraphPacket() {
 
 char onReceiveTelegraphPacket() {
   if (inputLock) {
-    throwError("WARN: Received two packets in too short of a time period!");
+    throwError("WARN: Received telegraph packet whilst 'inputLock' is active!");
     return ('e');
   }
   sendTelegraphSignal();
