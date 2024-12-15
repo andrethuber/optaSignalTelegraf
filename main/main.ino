@@ -4,15 +4,16 @@
 #define PHONE_SIG_OUT_PIN D2  // Connected to the phone bell
 #define PHONE_SIG_OUT_PIN_LED LED_D2
 
-#define MAX_PING 100                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
-#define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
-#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
-#define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 20          // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
-#define BLINK_LED LED_RESET         // pinId, The led used for indicating a local heartbeat
-#define BOUNCE_TIME 20              // ms, maximum possible bounce time for inputs
-#define PHONE_SIG_THRESHOLD 100     // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
-#define PHONE_SIG_SAMPLE_RATE 50    // ms, Sample rate for phone signal.
+#define MAX_PING 100                                  // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define HEARTBEAT_RATE 1000                           // ms, Time delay between sending heartbeat packets.
+#define MAX_TIME_NO_HEARTBEAT 5000                    // ms, Time allowed without receiving heartbeat packets before locking.
+#define T_SIGNAL_ON_TIME 100                          // ms, Time delay between closing and opening 'telegraphSigOut' relay
+#define INPUTLOCK_DELAY 20                            // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
+#define BLINK_LED LED_RESET                           // pinId, The led used for indicating a local heartbeat
+#define BOUNCE_TIME 20                                // ms, maximum possible bounce time for inputs
+#define PHONE_SIG_THRESHOLD 100                       // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
+#define PHONE_SIG_SAMPLE_RATE 50                      // ms, Sample rate for phone signal.
+#define TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK 5000  // ms, duration of telegraph sig in for it to count as eorror ack.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -87,7 +88,7 @@ const uint8_t pairedControllers[][2]{ // A table to define pairs
                                       { testA, testB },
                                       { garnesB, arnaA },
                                       { arnaB, haukelandA },
-                                      { haukelandB, garnesA}
+                                      { haukelandB, garnesA }
 };  // (Dont argue with the linter)
 
 
@@ -213,7 +214,7 @@ void loop() {
   }
 
   // Process 'errorAckBtn' press:
-  if (digitalRead(A1) && warningLamp) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
+  if (digitalRead(A1) || millis() - lastTelegraphPacket > TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK && telegraphSigIn && !inputLock) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
 
 
 
@@ -321,6 +322,7 @@ void throwError(char errorMessage[]) {
 }
 
 void onErrorAck() {
+  if (!warningLamp) return;
   warningLamp = false;
   unAcknowledgedTelegraphPackets = 0;
   Serial.println("Error has been acknowledged @");
