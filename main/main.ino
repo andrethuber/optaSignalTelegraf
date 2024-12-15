@@ -109,6 +109,7 @@ uint8_t remainingErrorRings;  // How many rings of the bell remains for warning 
 unsigned long lastPhoneSigSample;
 
 unsigned long lastTelegraphSigOut;
+unsigned long lastTelegraphSigInStChange;  // Last time the sate of tSig changed (falling/rising)
 
 unsigned long lastHeartBeatReceived;
 unsigned long lastHeartBeatSent;
@@ -204,6 +205,9 @@ void loop() {
   if (telegraphSigIn > previousTelegraphSigIn) {  // If 'telegraphSigIn' has risen
     Serial.println(sendTelegraphPacket());        // Attemps to send a telegraph packet, and prints the response.
   }
+  if (telegraphSigIn != previousTelegraphSigIn) {
+    lastTelegraphSigInStChange = millis();
+  }
   previousTelegraphSigIn = telegraphSigIn;  // To detect a rising edge
 
   // Process receiving a phone signal (spindle):
@@ -218,7 +222,7 @@ void loop() {
   }
 
   // Process 'errorAckBtn' press:
-  if (digitalRead(A1) || millis() - lastTelegraphPacket > TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK && telegraphSigIn && !inputLock) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
+  if (digitalRead(A1) || millis() - lastTelegraphSigInStChange > TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK && telegraphSigIn && !inputLock) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
 
 
 
