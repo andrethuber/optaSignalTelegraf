@@ -26,21 +26,33 @@
 
 /* Documentaion
 
-  Signal - The electrical signal that we are simulating.
-  Packet - The udp packet that travels between stations.
-  Controller - The Arduino Opta plc that runs this code. Each station has 1 or 2 controllers.
-  (controller) ID - uniqe ID/iterator for each controller. This ID starts at 3 for the eastern most controller, and iterates westwords through all controllers.
-  Phone spindle - Hand crack that operator spins in order to dial the code for another station.
+  Terms:
+    Signal - The electrical signal that we are simulating.
+    Packet - The udp packet that travels between stations.
+    Telegraph button - The button that TXP/operator presses to send signals to the paired station.
+    Controller - The Arduino Opta plc that runs this code. Each station has 1 or 2 controllers.
+    (controller) ID - uniqe ID/iterator for each controller. This ID starts at 3 for the eastern most controller, and iterates westwords through all controllers.
+    Phone spindle - Hand crack that operator spins in order to dial the code for another station.
+    timestamp variable - Variables of type 'unsined long' that stores the return values of 'millis()'
 
-  't' = Telegraph packet
-  'a' = "acknowledged", response to received 't' packet
-  'b' = Aborted sending packet because bouncing detected
-  'i' = Aborted sending packet because 'inputLock' is true (usually when receiving a signal)
-  'e' = General error
-  'h' = heartbeat, gets sent every ~1 sec
+  Codes:
+    't' = Telegraph packet
+    'a' = "acknowledged", response to received 't' packet
+    'b' = Aborted sending packet because bouncing detected
+    'i' = Aborted sending packet because 'inputLock' is true (usually when receiving a signal)
+    'e' = General error
+    'h' = heartbeat, gets sent every ~1 sec
+    'P'/'p' = Phone packets, capital case for rising, and lower case for falling.
 
-  Q1 - 'telegraphSigOut'
-  Q2 - 'warningLamp'
+  I/O:
+    I1 - 'telegraphSigIn'
+    I2 - 'onErrorAck()'
+    I3 - 'phoneSigIn'
+    I4...I8 - Confuguration dip pins
+    Q1 - 'telegraphSigOut'
+    Q2 - 'warningLamp'
+    Q3 - 'phoneSigOut'
+    Q4 - unused
 
 TODO:
   - OTA
@@ -48,11 +60,6 @@ TODO:
   - Logging
   - Remote error reporting (sms/email)
   - Handle 'millis' overflow
-  - Change IP system to allow each station (not controller or pair) to be on diffrent layer 3 networks.
-  - Insted of setting a warning lamp on errors, insted ring the bells 6 times repetedly.
-  - Broadcast phone ringing signals to all stations.
-
-  - Fix bug where t-sig can ack error instanly if recives t-pkt at the same time as rising edge.
 */
 
 bool blink = true;
