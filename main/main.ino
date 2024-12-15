@@ -328,8 +328,8 @@ void onReceiveHeartbeat() {
 void throwError(char errorMessage[]) {
   if (!warningLamp) {
     udpSend('e');  // Tell the paired station that we have experienced an error
-    Serial.print("'ramainingErrorRings' = ");
     remainingErrorRings = 9;
+    Serial.print("'ramainingErrorRings' = ");
     Serial.println(remainingErrorRings);
   }
   warningLamp = true;
