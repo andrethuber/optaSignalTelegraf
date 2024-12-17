@@ -82,15 +82,30 @@ IPAddress ipLocal;
 IPAddress ipRemote;
 
 IPAddress ipAddresses[] = {
-  { 0, 0, 0, 0 },        // Null IP address
-  { 192, 168, 40, 60 },  // Test A (to TestB)
-  { 192, 168, 40, 61 },  // Test B (to TestA)
-  { 10, 1, 0, 60 },      // Garnes A (to Haukeland B)
-  { 10, 1, 0, 61 },      // Garnes B (to Arna A)
-  { 10, 2, 0, 60 },      // Arna A (to Garnes B)
-  { 10, 2, 0, 62 },      // Arna B (to Haukeland A)
-  { 10, 3, 0, 60 },      // Haukeland A (to Arna B)
-  { 10, 3, 0, 61 }       // Haulekand B (to Garnes A)
+  { 0, 0, 0, 0 },    // Null IP address
+  { 10, 3, 2, 50 },  // Test A (to TestB)
+  { 10, 3, 2, 51 },  // Test B (to TestA)
+  { 10, 1, 2, 60 },  // Garnes A (to Haukeland B)
+  { 10, 1, 2, 61 },  // Garnes B (to Arna A)
+  { 10, 2, 2, 60 },  // Arna A (to Garnes B)
+  { 10, 2, 2, 62 },  // Arna B (to Haukeland A)
+  { 10, 3, 2, 60 },  // Haukeland A (to Arna B)
+  { 10, 3, 2, 61 }   // Haulekand B (to Garnes A)
+};
+
+IPAddress extra_heartbeat_server_ip = { 172, 30, 1, 12 };  // IP address, IP address of server to also recive heartbeats
+
+
+IPAddress gateways[] = {
+  { 0, 0, 0, 0 },   // Null IP address
+  { 10, 3, 2, 1 },  // Test A (to TestB)
+  { 10, 3, 2, 1 },  // Test B (to TestA)
+  { 10, 1, 2, 1 },  // Garnes A (to Haukeland B)
+  { 10, 1, 2, 1 },  // Garnes B (to Arna A)
+  { 10, 2, 2, 1 },  // Arna A (to Garnes B)
+  { 10, 2, 2, 1 },  // Arna B (to Haukeland A)
+  { 10, 3, 2, 1 },  // Haukeland A (to Arna B)
+  { 10, 3, 2, 1 }   // Haulekand B (to Garnes A)
 };
 
 const uint8_t pairedControllers[][2]{ // A table to define pairs
@@ -133,7 +148,7 @@ void setup() {
   digitalWrite(BLINK_LED, HIGH);  // Enable BLINK_LED led at start of setup
 
   Serial.begin(9600);
-  delay(2000); // To give seiral time to establish.
+  delay(2000);  // To give seiral time to establish.
   Serial.println("t1");
 
   initDipPins(dipPins, LENOF(dipPins));
@@ -151,6 +166,7 @@ void setup() {
   ipLocal = ipAddresses[dipValue];               // Get local IP
   ipRemote = ipAddresses[findPaired(dipValue)];  // Get remote IP
 
+
   Serial.print("ipLocal = ");
   Serial.println(ipLocal);
   Serial.print("ipRemote = ");
@@ -160,9 +176,18 @@ void setup() {
   Serial.println("t2");
 
   // Ethernet/Udp:
-  Ethernet.begin(ipLocal);
+  Ethernet.begin(ipLocal, gateways[dipValue], gateways[dipValue]);  //
   if (Ethernet.hardwareStatus() == EthernetNoHardware) Serial.println("Ethernet hardware not found");
   if (Ethernet.linkStatus() == LinkOFF) Serial.println("Ethernet cable is not connected");
+
+  Serial.print("MAC: ");
+  Serial.println(Ethernet.macAddress());
+  Serial.print("IP address: ");
+  Serial.println(Ethernet.localIP());
+  Serial.print("dns: ");
+  Serial.println(Ethernet.dnsIP());
+  Serial.print("Gateway: ");
+  Serial.println(Ethernet.gatewayIP());
 
   Serial.println("t3");
 
@@ -256,6 +281,9 @@ void loop() {
     udpSend('h');
     digitalWrite(BLINK_LED, blink);  // Toggle blink led
     blink = !blink;
+    udp.beginPacket(extra_heartbeat_server_ip, PORT);
+    udp.write('h');
+    udp.endPacket();
   }
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME) {  // Resets 'telegraphSigOut' relay
     digitalWrite(LED_D0, LOW);
