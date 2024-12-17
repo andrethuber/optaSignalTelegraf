@@ -85,12 +85,12 @@ IPAddress ipAddresses[] = {
   { 0, 0, 0, 0 },        // Null IP address
   { 192, 168, 40, 60 },  // Test A (to TestB)
   { 192, 168, 40, 61 },  // Test B (to TestA)
-  { 192, 168, 50, 60 },  // Garnes A (to Haukeland B)
-  { 192, 168, 50, 61 },  // Garnes B (to Arna A)
-  { 192, 168, 51, 60 },  // Arna A (to Garnes B)
-  { 192, 168, 51, 62 },  // Arna B (to Haukeland A)
-  { 192, 168, 52, 60 },  // Haukeland A (to Arna B)
-  { 192, 168, 52, 61 }   // Haulekand B (to Garnes A)
+  { 10, 1, 0, 60 },  // Garnes A (to Haukeland B)
+  { 10, 1, 0, 61 },  // Garnes B (to Arna A)
+  { 10, 2, 0, 60 },  // Arna A (to Garnes B)
+  { 10, 2, 0, 62 },  // Arna B (to Haukeland A)
+  { 10, 3, 0, 60 },  // Haukeland A (to Arna B)
+  { 10, 3, 0, 61 }   // Haulekand B (to Garnes A)
 };
 
 const uint8_t pairedControllers[][2]{ // A table to define pairs
