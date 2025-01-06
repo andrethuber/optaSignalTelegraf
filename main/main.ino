@@ -93,6 +93,32 @@ IPAddress ipAddresses[] = {
   { 10, 3, 2, 61 }   // Haulekand B (to Garnes A)
 };
 
+IPAddress gateways[] = {
+  { 0, 0, 0, 0 },   // Null
+  { 10, 3, 2, 1 },  // Test A
+  { 10, 3, 2, 1 },  // Test B
+  { 10, 1, 2, 1 },  // Garnes A
+  { 10, 1, 2, 1 },  // Garnes B
+  { 10, 2, 2, 1 },  // Arna A
+  { 10, 2, 2, 1 },  // Arna B
+  { 10, 3, 2, 1 },  // Haukeland A
+  { 10, 3, 2, 1 }   // Haulekand B
+};
+
+byte macAdresses[][6] = {
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x00 },  // Null
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x01 },  // Test A
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x02 },  // Test B
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x03 },  // Garnes A
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x04 },  // Garnes B
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x05 },  // Arna A
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x06 },  // Arna B
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x07 },  // Haukeland A B
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x08 }   // Haukeland
+};
+
+IPAddress remoteHeartbeatServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a remote server to also recive heartbeats.
+
 const uint8_t pairedControllers[][2]{ // A table to define pairs
                                       { null, null },
                                       { testA, testB },
@@ -143,6 +169,18 @@ void setup() {
   Serial.print("dipValue = ");
   Serial.println(dipValue);
 
+
+  if (LENOF(ipAddresses) + LENOF(gateways) + LENOF(macAdresses) != LENOF(ipAddresses) * 3) {
+    dipValue = 0;
+    throwError("WARN: not all lookup tables have the same value:");
+    Serial.print("'ipAddresses' = ");
+    Serial.println(LENOF(ipAddresses));
+    Serial.print("'gateways' = ");
+    Serial.println(LENOF(gateways));
+    Serial.print("'macAdresses' = ");
+    Serial.println(LENOF(macAdresses));
+  }
+
   if (dipValue > LENOF(ipAddresses)) {
     dipValue = 0;
     throwError("WARN: 'dipValue' out of bounds!");
@@ -160,7 +198,7 @@ void setup() {
   Serial.println("t2");
 
   // Ethernet/Udp:
-  Ethernet.begin(ipLocal);
+  Ethernet.begin(macAdresses[dipValue], ipLocal, gateways[dipValue], gateways[dipValue]);
   if (Ethernet.hardwareStatus() == EthernetNoHardware) Serial.println("Ethernet hardware not found");
   if (Ethernet.linkStatus() == LinkOFF) Serial.println("Ethernet cable is not connected");
 
@@ -256,6 +294,9 @@ void loop() {
     udpSend('h');
     digitalWrite(BLINK_LED, blink);  // Toggle blink led
     blink = !blink;
+    udp.beginPacket(remoteHeartbeatServerIp, PORT);
+    udp.write('h');
+    udp.endPacket();
   }
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME) {  // Resets 'telegraphSigOut' relay
     digitalWrite(LED_D0, LOW);
