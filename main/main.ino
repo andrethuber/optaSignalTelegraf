@@ -1,15 +1,23 @@
 #define LENOF(array) (sizeof(array) / sizeof(array[0]))
 
-#define PHONE_SIG_IN_PIN A2   // Connected to the output of the spindle
-#define PHONE_SIG_OUT_PIN D2  // Connected to the phone bell
-#define PHONE_SIG_OUT_PIN_LED LED_D2
+
+#define TELEGRAPH_SIG_IN_PIN A0       // pinID, digital input used to listen on the telegraph wire.
+#define TELEGRAPH_SIG_OUT_RLY D0      // pinID, relay output used to send a signal on the telegraph wire.
+#define TELEGRAPH_SIG_OUT_LED LED_D0  // pinID, relay output used to send a signal on the telegraph wire.
+#define ERROR_ACK_PIN A1              // pinID, digital input to ack a error.
+#define WARNING_LAMP_RLY D1           // pinID, relay output used to enable a warning lamp.
+#define WARNING_LAMP_LED LED_D1       // pinID, relay output used to enable a warning lamp.
+#define PHONE_SIG_IN_PIN A2           // pinID, Connected to the output of the spindle.
+#define PHONE_SIG_OUT_RLY D2          // pinID, Connected to the phone bell
+#define PHONE_SIG_OUT_LED LED_D2      // pinID
+#define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
+
 
 #define MAX_PING 100                                  // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
 #define HEARTBEAT_RATE 1000                           // ms, Time delay between sending heartbeat packets.
 #define MAX_TIME_NO_HEARTBEAT 5000                    // ms, Time allowed without receiving heartbeat packets before locking.
 #define T_SIGNAL_ON_TIME 100                          // ms, Time delay between closing and opening 'telegraphSigOut' relay
 #define INPUTLOCK_DELAY 20                            // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
-#define BLINK_LED LED_RESET                           // pinId, The led used for indicating a local heartbeat
 #define BOUNCE_TIME 20                                // ms, maximum possible bounce time for inputs
 #define PHONE_SIG_THRESHOLD 100                       // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
 #define PHONE_SIG_SAMPLE_RATE 50                      // ms, Sample rate for phone signal.
@@ -78,8 +86,8 @@ enum controllers {  //
   haukelandB
 };
 
-IPAddress ipLocal;
-IPAddress ipPaired;
+uint8_t localID;
+uint8_t pairedID;
 
 IPAddress ipAddresses[] = {
   { 0, 0, 0, 0 },    // Null IP address
@@ -105,7 +113,8 @@ IPAddress gateways[] = {
   { 10, 3, 2, 1 }   // Haulekand B
 };
 
-byte macAdresses[][6] = {
+byte macAddresses[][6] = {
+  // 'Ethernet.begin()' wants a MAC address as a argument, but it dosent seem to acually want to use it, as 'Ethernet.MACAddress()' returns something else.
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x00 },  // Null
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x01 },  // Test A
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x02 },  // Test B
@@ -160,94 +169,128 @@ void setup() {
 
   Serial.begin(9600);
   delay(2000);  // To give time for serial to establish.
-  Serial.println("t1");
+  Serial.println("\nSerial begun.");
 
+
+  // Figure out ID of paired controller:
   initDipPins(dipPins, LENOF(dipPins));
-
-  // Figure out local IP and IP of paired controller:
+  Serial.print("'dipPins': ");
   uint8_t dipValue = readDipPins(dipPins, LENOF(dipPins));  // Decimal interpretation of dip pins
-  Serial.print("dipValue = ");
+  Serial.print("'dipValue' = ");
   Serial.println(dipValue);
+  localID = dipValue;  // Sets the local id before checks, so it can be overwritten if they fail.
 
-
-  if (LENOF(ipAddresses) + LENOF(gateways) + LENOF(macAdresses) != LENOF(ipAddresses) * 3) {
-    dipValue = 0;
-    throwError("WARN: not all lookup tables have the same value:");
+  if (LENOF(ipAddresses) + LENOF(gateways) + LENOF(macAddresses) == LENOF(ipAddresses) * 3) {
+    Serial.print("PASS: All lookup tables have the same number of eneries: ");
+    Serial.println(LENOF(ipAddresses));
+  } else {
+    localID = 0;
+    throwError("FAIL: not all lookup tables have the same value.");
     Serial.print("'ipAddresses' = ");
     Serial.println(LENOF(ipAddresses));
     Serial.print("'gateways' = ");
     Serial.println(LENOF(gateways));
-    Serial.print("'macAdresses' = ");
-    Serial.println(LENOF(macAdresses));
+    Serial.print("'macAddresses' = ");
+    Serial.println(LENOF(macAddresses));
   }
 
-  if (dipValue > LENOF(ipAddresses)) {
-    dipValue = 0;
-    throwError("WARN: 'dipValue' out of bounds!");
+  if (dipValue <= LENOF(ipAddresses) - 1) {
+    Serial.print("PASS: 'dipValue' is within bounds: ");
+    Serial.print(dipValue);
+    Serial.print(" / ");
+    Serial.println(LENOF(ipAddresses) - 1);
+  } else {
+    localID = 0;
+    throwError("FAIL: 'localID' out of bounds! (or 'ipAddresses' has too few entries)");
   }
 
-  ipLocal = ipAddresses[dipValue];               // Get local IP
-  ipPaired = ipAddresses[findPaired(dipValue)];  // Get remote IP
+  // 'dipValue' should not be used below here.
 
-  Serial.print("ipLocal = ");
-  Serial.println(ipLocal);
-  Serial.print("ipPaired = ");
-  Serial.println(ipPaired);
+  Serial.print("'localID' = ");
+  Serial.println(localID);
 
+  pairedID = findPaired(localID);
+  Serial.print("'pairedID' = ");
+  Serial.println(pairedID);
 
-  Serial.println("t2");
 
   // Ethernet/Udp:
-  Ethernet.begin(macAdresses[dipValue], ipLocal, gateways[dipValue], gateways[dipValue]);
-  if (Ethernet.hardwareStatus() == EthernetNoHardware) Serial.println("Ethernet hardware not found");
-  if (Ethernet.linkStatus() == LinkOFF) Serial.println("Ethernet cable is not connected");
+  Ethernet.begin(macAddresses[localID], ipAddresses[localID], gateways[localID], gateways[localID]);
+  Serial.println("Ethernet begun.");
 
-  Serial.println("t3");
+  if (Ethernet.hardwareStatus() != EthernetNoHardware) {
+    Serial.print("PASS: Ethernet hardware found: ");
+  } else {
+    throwError("FAIL: Ethernet hardware not found.");
+  }
+  Serial.println(Ethernet.hardwareStatus());
+
+  if (Ethernet.linkStatus() != LinkOFF) {
+    Serial.print("PASS: Ethernet link is not off: ");
+  } else {
+    throwError("FAIL: Ethernet link is off: ");
+  }
+  Serial.println(Ethernet.linkStatus());
+
+  Serial.print("\nLocal IP: ");
+  Serial.println(Ethernet.localIP());
+  Serial.print("Paried IP: ");
+  Serial.println(ipAddresses[pairedID]);
+  Serial.print("MAC: ");
+  Serial.println(Ethernet.macAddress());
+  Serial.print("DNS: ");
+  Serial.println(Ethernet.dnsServerIP());
+  Serial.print("Gateway: ");
+  Serial.println(Ethernet.gatewayIP());
+  Serial.println();
 
   udp.begin(PORT);
+  Serial.println("Udp begun.");
 
-
+  Serial.print("Pin modes: ");
 
   // Telegraph signal in:
-  pinMode(A0, INPUT);
-  pinMode(BTN_USER, INPUT);
-
-  // Error acknowledge button:
-  pinMode(A1, INPUT);
+  verbosePinMode(TELEGRAPH_SIG_IN_PIN, INPUT);
+  verbosePinMode(BTN_USER, INPUT);
 
   // Telegraph signal out:
-  pinMode(LED_D0, OUTPUT);
-  pinMode(D0, OUTPUT);
+  verbosePinMode(TELEGRAPH_SIG_OUT_RLY, OUTPUT);
+  verbosePinMode(TELEGRAPH_SIG_OUT_LED, OUTPUT);
+
+  // Error acknowledge button:
+  verbosePinMode(ERROR_ACK_PIN, INPUT);
 
   // Warning lamp:
-  pinMode(LED_D1, OUTPUT);
-  pinMode(D1, OUTPUT);
+  verbosePinMode(WARNING_LAMP_RLY, OUTPUT);
+  verbosePinMode(WARNING_LAMP_LED, OUTPUT);
 
   // Phone in/out:
-  pinMode(PHONE_SIG_IN_PIN, INPUT);
-  pinMode(PHONE_SIG_OUT_PIN, OUTPUT);
-  pinMode(PHONE_SIG_OUT_PIN_LED, OUTPUT);
+  verbosePinMode(PHONE_SIG_IN_PIN, INPUT);
+  verbosePinMode(PHONE_SIG_OUT_RLY, OUTPUT);
+  verbosePinMode(PHONE_SIG_OUT_LED, OUTPUT);
+
+  Serial.println();
 
   udpSendAll(analogRead(PHONE_SIG_IN_PIN) > PHONE_SIG_THRESHOLD ? 'P' : 'p');  // Send 'P' if phone spindle is spinning and 'p' if not spinning.
   if (analogRead(PHONE_SIG_IN_PIN) > PHONE_SIG_THRESHOLD) throwError("WARN: Phone signal in is high at boot!");
 
   // Blink led is handled at start of setup.
 
-  digitalWrite(LED_D1, warningLamp);  // Updates warning lamp leds
-  digitalWrite(D1, warningLamp);
+  digitalWrite(WARNING_LAMP_RLY, warningLamp);  // Updates warning lamp leds
+  digitalWrite(WARNING_LAMP_LED, warningLamp);
 
   digitalWrite(BLINK_LED, LOW);  // Rapidly blink BLINK_LED at end of setup
   delay(50);
   digitalWrite(BLINK_LED, HIGH);
-  Serial.println("t4");
+  Serial.println("Setup finished!\n");
 }
 
 void loop() {
 
   // Process receiving a telegraph signal (button press):
-  bool telegraphSigIn = digitalRead(A0) | !digitalRead(BTN_USER);
+  bool telegraphSigIn = digitalRead(TELEGRAPH_SIG_IN_PIN) | !digitalRead(BTN_USER);
   if (telegraphSigIn > previousTelegraphSigIn) {  // If 'telegraphSigIn' has risen
-    Serial.println(sendTelegraphPacket());        // Attemps to send a telegraph packet, and prints the response.
+    sendTelegraphPacket();                        // Attemps to send a telegraph packet.
   }
   if (telegraphSigIn != previousTelegraphSigIn) {
     lastTelegraphSigInStChange = millis();
@@ -266,24 +309,26 @@ void loop() {
   }
 
   // Process 'errorAckBtn' press:
-  if (digitalRead(A1) || millis() - lastTelegraphSigInStChange > TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK && telegraphSigIn && !inputLock) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
+  if (digitalRead(ERROR_ACK_PIN) || millis() - lastTelegraphSigInStChange > TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK && telegraphSigIn && !inputLock) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
 
 
 
   // What to do when a udp packet is received:
   uint8_t packetSize = udp.parsePacket();
   if (packetSize) {
-    Serial.print("Received packet ");
-    Serial.print(packetSize);
-    Serial.print(udp.read(packetBuffer, packetSize));
-    Serial.print(": ");
+    Serial.print(" Rx: ");
+    udp.read(packetBuffer, packetSize);
     Serial.println(packetBuffer);
 
-    if (packetSize > 1) throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
+    if (packetSize > 1) {
+      throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
+      Serial.print("Previous packet size: ");
+      Serial.println(packetSize);
+    }
 
     if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                         // Process heartbeat
     if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error packet
-    if (packetBuffer[0] == 't') Serial.println(onReceiveTelegraphPacket());                   // Process telegraph packet
+    if (packetBuffer[0] == 't') onReceiveTelegraphPacket();                                   // Process telegraph packet
     if (packetBuffer[0] == 'a') onRecieveAcknowledgement();                                   // Process acknowledgement packet
     if (packetBuffer[0] == 'P') phoneSigOut = true;                                           // Close phone bell relay
     if (packetBuffer[0] == 'p') phoneSigOut = false;                                          // Open phone bell relay
@@ -299,8 +344,8 @@ void loop() {
     udp.endPacket();
   }
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME) {  // Resets 'telegraphSigOut' relay
-    digitalWrite(LED_D0, LOW);
-    digitalWrite(D0, LOW);
+    digitalWrite(TELEGRAPH_SIG_OUT_RLY, LOW);
+    digitalWrite(TELEGRAPH_SIG_OUT_LED, LOW);
   }
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
@@ -308,67 +353,67 @@ void loop() {
   if (millis() - lastTelegraphSigOut > WARNING_BELL_RATE && remainingErrorRings > 0) {
     sendTelegraphSignal();
     remainingErrorRings--;
-    Serial.print("'ramainingErrorRings' = ");
+    Serial.print("'remainingErrorRings' = ");
     Serial.println(remainingErrorRings);
   }
 
-  digitalWrite(PHONE_SIG_OUT_PIN, phoneSigOut);  // Update pins to reflect internal state variables
-  digitalWrite(PHONE_SIG_OUT_PIN_LED, phoneSigOut);
+  digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);  // Update pins to reflect internal state variables
+  digitalWrite(PHONE_SIG_OUT_LED, phoneSigOut);
 }
 
 
 void udpSend(char code) {
-  Serial.print("Sent packet ");
-  Serial.print(udp.beginPacket(ipPaired, PORT));
-  Serial.print(udp.write(code));
-  Serial.print(udp.endPacket());
-  Serial.print(": ");
+  Serial.print("Tx: ");
+  udp.beginPacket(ipAddresses[pairedID], PORT);
+  udp.write(code);
+  udp.endPacket();
   Serial.println(code);
 }
 
 void udpSendAll(char code) {
-  Serial.print("Sent packet: ");
-  Serial.print(code);
-  Serial.print("; ");
+  Serial.print("Tx(all): ");
   for (uint8_t i = 1; i < LENOF(ipAddresses); i++) {
-    Serial.print(udp.beginPacket(ipAddresses[i], PORT));
-    Serial.print(udp.write(code));
-    Serial.print(udp.endPacket());
-    Serial.print("; ");
+    udp.beginPacket(ipAddresses[i], PORT);
+    udp.write(code);
+    udp.endPacket();
   }
-  Serial.println();
+  Serial.println(code);
 }
 
-char sendTelegraphPacket() {
-  if (millis() - lastTelegraphPacket < BOUNCE_TIME) return ('b');
-  if (inputLock) return ('i');
+void sendTelegraphPacket() {
+  if (millis() - lastTelegraphPacket < BOUNCE_TIME) return;
+  if (inputLock) return;
+  lastTelegraphPacket = millis();
   unAcknowledgedTelegraphPackets++;
+  Serial.println("Sending telegraph packet!");
+  Serial.print("  'unAcknowledgedTelegraphPackets' = ");
   Serial.println(unAcknowledgedTelegraphPackets);
   udpSend('t');
-  lastTelegraphPacket = millis();
-  return ('t');
 }
 
-char onReceiveTelegraphPacket() {
+void onReceiveTelegraphPacket() {
   if (inputLock) {
     throwError("WARN: Received telegraph packet whilst 'inputLock' is active!");
-    return ('e');
+    return;
   }
   sendTelegraphSignal();
+  Serial.println("Recived telegraph packet!");
+  Serial.println("  Sending acknowledgement!");
   udpSend('a');
-  return ('a');
 }
 
 void sendTelegraphSignal() {
   inputLock = true;  // To make sure we do not process the output signal as a input signal.
-  digitalWrite(LED_D0, HIGH);
-  digitalWrite(D0, HIGH);
+  digitalWrite(TELEGRAPH_SIG_OUT_RLY, HIGH);
+  digitalWrite(TELEGRAPH_SIG_OUT_LED, HIGH);
   lastTelegraphSigOut = millis();
 }
 
 void onRecieveAcknowledgement() {
   lastAcknowledgement = millis();
   unAcknowledgedTelegraphPackets--;
+  Serial.println("Recived acknowledgement!");
+  Serial.print("  'unAcknowledgedTelegraphPackets' = ");
   Serial.println(unAcknowledgedTelegraphPackets);
 }
 
@@ -380,25 +425,25 @@ void throwError(char errorMessage[]) {
   if (!warningLamp) {
     udpSend('e');  // Tell the paired station that we have experienced an error
     remainingErrorRings = 9;
-    Serial.print("'ramainingErrorRings' = ");
+    Serial.print("'remainingErrorRings' = ");
     Serial.println(remainingErrorRings);
   }
   warningLamp = true;
-  Serial.println(errorMessage);
-  Serial.println("There has been a error @");
+  Serial.print(errorMessage);
+  Serial.print("\n  There has been a error @: ");
   Serial.println(millis());
-  digitalWrite(LED_D1, warningLamp);
-  digitalWrite(D1, warningLamp);
+  digitalWrite(WARNING_LAMP_RLY, warningLamp);
+  digitalWrite(WARNING_LAMP_LED, warningLamp);
 }
 
 void onErrorAck() {
   if (!warningLamp) return;
   warningLamp = false;
   unAcknowledgedTelegraphPackets = 0;
-  Serial.println("Error has been acknowledged @");
+  Serial.print("Error has been acknowledged @");
   Serial.println(millis());
-  digitalWrite(LED_D1, warningLamp);
-  digitalWrite(D1, warningLamp);
+  digitalWrite(WARNING_LAMP_RLY, warningLamp);
+  digitalWrite(WARNING_LAMP_LED, warningLamp);
 }
 
 void initDipPins(uint8_t pins[], uint8_t count) {
@@ -413,36 +458,29 @@ uint8_t readDipPins(uint8_t pins[], uint8_t count) {
   for (uint8_t i = 0; i < count; i++) {
     states[i] = digitalRead(pins[i]);
     value = value + pow(2, count - 1 - i) * states[i];
+    Serial.print(digitalRead(pins[i]));
+    Serial.print(", ");
   }
   return value;
 }
 
-uint8_t findPaired(uint8_t localID) {  // Figure out the ID of the controller in the same pair as this controller
-  Serial.print("LocalID: ");
-  Serial.println(localID);  // 'dipValue'
-
+uint8_t findPaired(uint8_t localID) {                          // Figure out the ID of the controller in the same pair as this controller
   for (uint8_t i1 = 0; i1 < LENOF(pairedControllers); i1++) {  // for each pair
-    Serial.print("t5:");
-    Serial.println(i1);
 
     for (bool i2 = 0;; i2++) {  // for each controller in a pair
-      Serial.print("t6:");
-      Serial.println(i2);
-
-      Serial.print("t7:");
-      Serial.println(pairedControllers[i1][i2]);
-
       if (pairedControllers[i1][i2] == localID) {
-        Serial.print("t8:");
-        Serial.print(i1);
-        Serial.print(":");
-        Serial.print(i2);
-        Serial.print(":");
-        Serial.println(!i2);
         return (pairedControllers[i1][!i2]);
       }
       if (i2) break;  // if has done 2. loop
     }
   }
   return (0);
+}
+
+void verbosePinMode(pin_size_t pin, PinMode mode) {
+  Serial.print(pin);
+  Serial.print(" > ");
+  Serial.print(mode);
+  Serial.print("; ");
+  pinMode(pin, mode);
 }
