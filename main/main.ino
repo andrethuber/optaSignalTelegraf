@@ -79,7 +79,7 @@ enum controllers {  //
 };
 
 IPAddress ipLocal;
-IPAddress ipRemote;
+IPAddress ipPaired;
 
 IPAddress ipAddresses[] = {
   { 0, 0, 0, 0 },    // Null IP address
@@ -149,12 +149,12 @@ void setup() {
   }
 
   ipLocal = ipAddresses[dipValue];               // Get local IP
-  ipRemote = ipAddresses[findPaired(dipValue)];  // Get remote IP
+  ipPaired = ipAddresses[findPaired(dipValue)];  // Get remote IP
 
   Serial.print("ipLocal = ");
   Serial.println(ipLocal);
-  Serial.print("ipRemote = ");
-  Serial.println(ipRemote);
+  Serial.print("ipPaired = ");
+  Serial.println(ipPaired);
 
 
   Serial.println("t2");
@@ -278,7 +278,7 @@ void loop() {
 
 void udpSend(char code) {
   Serial.print("Sent packet ");
-  Serial.print(udp.beginPacket(ipRemote, PORT));
+  Serial.print(udp.beginPacket(ipPaired, PORT));
   Serial.print(udp.write(code));
   Serial.print(udp.endPacket());
   Serial.print(": ");
