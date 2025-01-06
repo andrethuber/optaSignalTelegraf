@@ -82,7 +82,7 @@ IPAddress ipLocal;
 IPAddress ipRemote;
 
 IPAddress ipAddresses[] = {
-  { 0, 0, 0, 0 },        // Null IP address
+  { 0, 0, 0, 0 },    // Null IP address
   { 10, 3, 2, 50 },  // Test A (to TestB)
   { 10, 3, 2, 51 },  // Test B (to TestA)
   { 10, 1, 2, 60 },  // Garnes A (to Haukeland B)
