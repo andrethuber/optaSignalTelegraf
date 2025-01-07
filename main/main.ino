@@ -87,6 +87,7 @@ enum controllers {  //
 };
 
 uint8_t localID;
+char localIDChar[33];  // Seemed to work with a size of 0, but im scared it might be overflowing and using memory addresses it shouldent, witch might cause other problems later.
 uint8_t pairedID;
 
 IPAddress ipAddresses[] = {
@@ -206,8 +207,14 @@ void setup() {
 
   // 'dipValue' should not be used below here.
 
+
   Serial.print("'localID' = ");
   Serial.println(localID);
+
+  sprintf(localIDChar, "%d", localID);
+  Serial.print("'localIDChar = \"");
+  Serial.print(localIDChar);
+  Serial.println("\"");
 
   pairedID = findPaired(localID);
   Serial.print("'pairedID' = ");
@@ -236,6 +243,10 @@ void setup() {
   Serial.println(Ethernet.localIP());
   Serial.print("Paried IP: ");
   Serial.println(ipAddresses[pairedID]);
+  Serial.print("Remote heartbeat server IP: ");
+  Serial.println(remoteHeartbeatServerIp);
+  Serial.print("Port: ");
+  Serial.println(PORT);
   Serial.print("MAC: ");
   Serial.println(Ethernet.macAddress());
   Serial.print("DNS: ");
@@ -340,7 +351,9 @@ void loop() {
     digitalWrite(BLINK_LED, blink);  // Toggle blink led
     blink = !blink;
     udp.beginPacket(remoteHeartbeatServerIp, PORT);
-    udp.write('h');
+    udp.write("h ");
+    udp.write(localIDChar);
+    udp.write('\n');
     udp.endPacket();
   }
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME) {  // Resets 'telegraphSigOut' relay
