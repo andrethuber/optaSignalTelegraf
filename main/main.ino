@@ -42,6 +42,7 @@
     (controller) ID - uniqe ID/iterator for each controller. This ID starts at 3 for the eastern most controller, and iterates westwords through all controllers.
     Phone spindle - Hand crack that operator spins in order to dial the code for another station.
     timestamp variable - Variables of type 'unsined long' that stores the return values of 'millis()'
+    Remote server - A remote server that recievs heartbeats and error messages from all controllers.
 
   Codes:
     't' = Telegraph packet
@@ -127,7 +128,7 @@ byte macAddresses[][6] = {
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x08 }   // Haukeland
 };
 
-IPAddress remoteHeartbeatServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a remote server to also recive heartbeats.
+IPAddress remoteServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a remote server to also recive heartbeats.
 
 const uint8_t pairedControllers[][2]{ // A table to define pairs
                                       { null, null },
@@ -243,8 +244,8 @@ void setup() {
   Serial.println(Ethernet.localIP());
   Serial.print("Paried IP: ");
   Serial.println(ipAddresses[pairedID]);
-  Serial.print("Remote heartbeat server IP: ");
-  Serial.println(remoteHeartbeatServerIp);
+  Serial.print("Remote server IP: ");
+  Serial.println(remoteServerIp);
   Serial.print("Port: ");
   Serial.println(PORT);
   Serial.print("MAC: ");
@@ -350,7 +351,7 @@ void loop() {
     udpSend('h');
     digitalWrite(BLINK_LED, blink);  // Toggle blink led
     blink = !blink;
-    udp.beginPacket(remoteHeartbeatServerIp, PORT);
+    udp.beginPacket(remoteServerIp, PORT);
     udp.write("h ");
     udp.write(localIDChar);
     udp.write('\n');
