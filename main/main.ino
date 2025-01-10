@@ -84,7 +84,9 @@ enum controllers {  //
   arnaA,
   arnaB,
   haukelandA,
-  haukelandB
+  haukelandB,
+  testC,
+  testD
 };
 
 uint8_t localID;
@@ -92,27 +94,31 @@ char localIDChar[33];  // Seemed to work with a size of 0, but im scared it migh
 uint8_t pairedID;
 
 IPAddress ipAddresses[] = {
-  { 0, 0, 0, 0 },    // Null IP address
-  { 10, 3, 2, 50 },  // Test A (to TestB)
-  { 10, 3, 2, 51 },  // Test B (to TestA)
-  { 10, 1, 2, 60 },  // Garnes A (to Haukeland B)
-  { 10, 1, 2, 61 },  // Garnes B (to Arna A)
-  { 10, 2, 2, 60 },  // Arna A (to Garnes B)
-  { 10, 2, 2, 62 },  // Arna B (to Haukeland A)
-  { 10, 3, 2, 60 },  // Haukeland A (to Arna B)
-  { 10, 3, 2, 61 }   // Haulekand B (to Garnes A)
+  { 0, 0, 0, 0 },       // Null IP address
+  { 10, 3, 2, 50 },     // Test A (to TestB)
+  { 10, 3, 2, 51 },     // Test B (to TestA)
+  { 10, 1, 2, 60 },     // Garnes A (to Haukeland B)
+  { 10, 1, 2, 61 },     // Garnes B (to Arna A)
+  { 10, 2, 2, 60 },     // Arna A (to Garnes B)
+  { 10, 2, 2, 62 },     // Arna B (to Haukeland A)
+  { 10, 3, 2, 60 },     // Haukeland A (to Arna B)
+  { 10, 3, 2, 61 },     // Haulekand B (to Garnes A)
+  { 192, 168, 1, 50 },  // Test C (to testD)
+  { 192, 168, 1, 51 }   // Test D (to testC)
 };
 
 IPAddress gateways[] = {
-  { 0, 0, 0, 0 },   // Null
-  { 10, 3, 2, 1 },  // Test A
-  { 10, 3, 2, 1 },  // Test B
-  { 10, 1, 2, 1 },  // Garnes A
-  { 10, 1, 2, 1 },  // Garnes B
-  { 10, 2, 2, 1 },  // Arna A
-  { 10, 2, 2, 1 },  // Arna B
-  { 10, 3, 2, 1 },  // Haukeland A
-  { 10, 3, 2, 1 }   // Haulekand B
+  { 0, 0, 0, 0 },      // Null
+  { 10, 3, 2, 1 },     // Test A
+  { 10, 3, 2, 1 },     // Test B
+  { 10, 1, 2, 1 },     // Garnes A
+  { 10, 1, 2, 1 },     // Garnes B
+  { 10, 2, 2, 1 },     // Arna A
+  { 10, 2, 2, 1 },     // Arna B
+  { 10, 3, 2, 1 },     // Haukeland A
+  { 10, 3, 2, 1 },     // Haulekand B
+  { 192, 168, 1, 1 },  // Test C
+  { 192, 168, 1, 1 }   // Test D
 };
 
 byte macAddresses[][6] = {
@@ -125,7 +131,9 @@ byte macAddresses[][6] = {
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x05 },  // Arna A
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x06 },  // Arna B
   { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x07 },  // Haukeland A
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x08 }   // Haukeland B
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x08 },  // Haukeland B
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x09 },  // Test C
+  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x0a }   // Test E
 };
 
 IPAddress remoteServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a remote server to also recive heartbeats.
@@ -135,7 +143,8 @@ const uint8_t pairedControllers[][2]{ // A table to define pairs
                                       { testA, testB },
                                       { garnesB, arnaA },
                                       { arnaB, haukelandA },
-                                      { haukelandB, garnesA }
+                                      { haukelandB, garnesA },
+                                      { testC, testD }
 };  // (Dont argue with the linter)
 
 
