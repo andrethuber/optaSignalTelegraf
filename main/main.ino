@@ -23,6 +23,7 @@
 #define PHONE_SIG_SAMPLE_RATE 50                      // ms, Sample rate for phone signal.
 #define TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK 5000  // ms, duration of telegraph sig in for it to count as eorror ack.
 #define WARNING_BELL_RATE 500                         // ms, rate of rings for warning of errors.
+#define PACKET_MAX_SIZE 1                             // bytes, how many bytes we allow to parce for recieving UDP packets.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -171,7 +172,7 @@ unsigned long lastHeartBeatSent;
 
 
 EthernetUDP udp;
-char packetBuffer[UDP_TX_PACKET_MAX_SIZE];  // Buffer to hold incoming packet.
+char packetBuffer[PACKET_MAX_SIZE + 1];  // Buffer to hold incoming packet, "+ 1" is to make space for null character.
 
 
 void setup() {
@@ -335,25 +336,47 @@ void loop() {
 
 
   // What to do when a udp packet is received:
-  uint8_t packetSize = udp.parsePacket();
+  uint16_t packetSize = udp.parsePacket();
   if (packetSize) {
     Serial.print(" Rx: ");
-    udp.read(packetBuffer, packetSize);
+    udp.read(packetBuffer, PACKET_MAX_SIZE);
+    packetBuffer[packetSize] = '\0';  // Termintaes the c-string with a null, so the message isnt polluted by previous messages.
     Serial.println(packetBuffer);
 
     if (packetSize > 1) {
       throwError("WARN: Received a packet with a size greater then 1!");  // No packets are supposed to be more than 1 long, so if it is, something is awry.
-      Serial.print("Previous packet size: ");
+      Serial.print("  Previous packet size: ");
       Serial.println(packetSize);
+      if (packetSize == 508) Serial.println("  Note: 508 is the maximum size of pakcets supported by EthernetUDP.");
     }
 
-    if (packetBuffer[0] == 'h') onReceiveHeartbeat();                                         // Process heartbeat
-    if (packetBuffer[0] == 'e') throwError("WARN: Paired station has experienced a error!");  // Process error packet
-    if (packetBuffer[0] == 't') onReceiveTelegraphPacket();                                   // Process telegraph packet
-    if (packetBuffer[0] == 'a') onRecieveAcknowledgement();                                   // Process acknowledgement packet
-    if (packetBuffer[0] == 'P') phoneSigOut = true;                                           // Close phone bell relay
-    if (packetBuffer[0] == 'p') phoneSigOut = false;                                          // Open phone bell relay
-  }                                                                                           // end 'if (packetSize)'
+    switch (packetBuffer[0]) {
+      case 'h':
+        onReceiveHeartbeat();  // Process heartbeat
+        break;
+      case 'e':
+        throwError("WARN: Paired station has experienced a error!");  // Process error packet
+        break;
+      case 't':
+        onReceiveTelegraphPacket();  // Process telegraph packet
+        break;
+      case 'a':
+        onRecieveAcknowledgement();  // Process acknowledgement packet
+        break;
+      case 'P':
+        phoneSigOut = true;  // Close phone bell relay
+        break;
+      case 'p':
+        phoneSigOut = false;  // Open phone bell relay
+        break;
+      default:
+        throwError("WARN: Recived a invalid packet!");
+        Serial.print("  'packetBuffer[");
+        Serial.print(sizeof(packetBuffer));
+        Serial.print("]' = ");
+        Serial.println(packetBuffer);
+    }
+  }  // end 'if (packetSize)'
 
   if (millis() - lastHeartBeatSent > HEARTBEAT_RATE) {  // Sends heartbeats
     lastHeartBeatSent = millis();
