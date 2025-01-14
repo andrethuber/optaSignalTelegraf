@@ -340,7 +340,7 @@ void loop() {
   if (packetSize) {
     Serial.print(" Rx: ");
     udp.read(packetBuffer, PACKET_MAX_SIZE);
-    packetBuffer[packetSize] = '\0';  // Termintaes the c-string with a null, so the message isnt polluted by previous messages.
+    packetBuffer[packetSize > PACKET_MAX_SIZE ? PACKET_MAX_SIZE : packetSize] = '\0';  // Termintaes the c-string with a null, so the message isnt polluted by previous messages.
     Serial.println(packetBuffer);
 
     if (packetSize > 1) {
