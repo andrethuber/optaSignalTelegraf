@@ -21,8 +21,6 @@
 #define BOUNCE_TIME 20                                // ms, maximum possible bounce time for inputs
 #define PHONE_SIG_THRESHOLD 100                       // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
 #define PHONE_SIG_SAMPLE_RATE 50                      // ms, Sample rate for phone signal.
-#define TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK 5000  // ms, duration of telegraph sig in for it to count as eorror ack.
-#define WARNING_BELL_RATE 500                         // ms, rate of rings for warning of errors.
 #define PACKET_MAX_SIZE 1                             // bytes, how many bytes we allow to parce for recieving UDP packets.
 
 #define PORT 8888  // Port that the controllers send and listen on.
@@ -70,7 +68,6 @@ TODO:
   - Logging
   - Remote error reporting (sms/email)
   - Handle 'millis' overflow
-  - Remove rings for error and hold telegraph button for ack
   - Add outputs for errorRemote and errorLocal, and ackAll and ackLocal inputs
   - Make send 'H' if not in error and 'h' if in error
   - Make phone signal send 'P' continiustly whilst active, insted of toggling with 'P' and 'p'
@@ -163,11 +160,9 @@ bool phoneSigOut;
 unsigned long lastTelegraphPacket;
 unsigned long lastAcknowledgement;
 uint16_t unAcknowledgedTelegraphPackets;
-uint8_t remainingErrorRings;  // How many rings of the bell remains for warning of an error
 unsigned long lastPhoneSigSample;
 
 unsigned long lastTelegraphSigOut;
-unsigned long lastTelegraphSigInStChange;  // Last time the sate of tSig changed (falling/rising)
 
 unsigned long lastHeartBeatReceived;
 unsigned long lastHeartBeatSent;
@@ -318,9 +313,6 @@ void loop() {
   if (telegraphSigIn > previousTelegraphSigIn) {  // If 'telegraphSigIn' has risen
     sendTelegraphPacket();                        // Attemps to send a telegraph packet.
   }
-  if (telegraphSigIn != previousTelegraphSigIn) {
-    lastTelegraphSigInStChange = millis();
-  }
   previousTelegraphSigIn = telegraphSigIn;  // To detect a rising edge
 
   // Process receiving a phone signal (spindle):
@@ -335,7 +327,7 @@ void loop() {
   }
 
   // Process 'errorAckBtn' press:
-  if (digitalRead(ERROR_ACK_PIN) || millis() - lastTelegraphSigInStChange > TELEGRAPH_SIG_IN_DURATION_FOR_ERROR_ACK && telegraphSigIn && !inputLock) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
+  if (digitalRead(ERROR_ACK_PIN)) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
 
 
 
@@ -400,12 +392,6 @@ void loop() {
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
-  if (millis() - lastTelegraphSigOut > WARNING_BELL_RATE && remainingErrorRings > 0) {
-    sendTelegraphSignal();
-    remainingErrorRings--;
-    Serial.print("'remainingErrorRings' = ");
-    Serial.println(remainingErrorRings);
-  }
 
   digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);  // Update pins to reflect internal state variables
   digitalWrite(PHONE_SIG_OUT_LED, phoneSigOut);
@@ -472,12 +458,7 @@ void onReceiveHeartbeat() {
 }
 
 void throwError(char errorMessage[]) {
-  if (!warningLamp) {
-    udpSend('e');  // Tell the paired station that we have experienced an error
-    remainingErrorRings = 9;
-    Serial.print("'remainingErrorRings' = ");
-    Serial.println(remainingErrorRings);
-  }
+  if (!warningLamp) udpSend('e');  // Tell the paired station that we have experienced an error
   warningLamp = true;
   Serial.print(errorMessage);
   Serial.print("\n  There has been a error @: ");
