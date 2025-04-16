@@ -5,8 +5,8 @@
 #define TELEGRAPH_SIG_OUT_RLY D0      // pinID, relay output used to send a signal on the telegraph wire.
 #define TELEGRAPH_SIG_OUT_LED LED_D0  // pinID, relay output used to send a signal on the telegraph wire.
 #define ERROR_ACK_PIN A1              // pinID, digital input to ack a error.
-#define WARNING_LAMP_RLY D1           // pinID, relay output used to enable a warning lamp.
-#define WARNING_LAMP_LED LED_D1       // pinID, relay output used to enable a warning lamp.
+#define ERROR_LOCAL_RLY D1           // pinID, relay output used to signal that controller is in error state.
+#define ERROR_LOCAL_LED LED_D1       // pinID, relay output used to signal that controller is in error state.
 #define PHONE_SIG_IN_PIN A2           // pinID, Connected to the output of the spindle.
 #define PHONE_SIG_OUT_RLY D2          // pinID, Connected to the phone bell
 #define PHONE_SIG_OUT_LED LED_D2      // pinID
@@ -58,7 +58,7 @@
     I3 - 'phoneSigIn'
     I4...I8 - Confuguration dip pins
     Q1 - 'telegraphSigOut'
-    Q2 - 'warningLamp'
+    Q2 - 'errorLocal'
     Q3 - 'phoneSigOut'
     Q4 - unused
 
@@ -150,7 +150,7 @@ const uint8_t pairedControllers[][2]{ // A table to define pairs
 };  // (Dont argue with the linter)
 
 
-bool warningLamp = true;
+bool errorLocal = true;
 
 bool previousTelegraphSigIn;
 bool inputLock;
@@ -281,9 +281,9 @@ void setup() {
   // Error acknowledge button:
   verbosePinMode(ERROR_ACK_PIN, INPUT);
 
-  // Warning lamp:
-  verbosePinMode(WARNING_LAMP_RLY, OUTPUT);
-  verbosePinMode(WARNING_LAMP_LED, OUTPUT);
+  // Error local signal:
+  verbosePinMode(ERROR_LOCAL_RLY, OUTPUT);
+  verbosePinMode(ERROR_LOCAL_LED, OUTPUT);
 
   // Phone in/out:
   verbosePinMode(PHONE_SIG_IN_PIN, INPUT);
@@ -297,8 +297,8 @@ void setup() {
 
   // Blink led is handled at start of setup.
 
-  digitalWrite(WARNING_LAMP_RLY, warningLamp);  // Updates warning lamp leds
-  digitalWrite(WARNING_LAMP_LED, warningLamp);
+  digitalWrite(ERROR_LOCAL_RLY, errorLocal);  // Updates error local signal
+  digitalWrite(ERROR_LOCAL_LED, errorLocal);
 
   digitalWrite(BLINK_LED, LOW);  // Rapidly blink BLINK_LED at end of setup
   delay(50);
@@ -390,8 +390,8 @@ void loop() {
     digitalWrite(TELEGRAPH_SIG_OUT_LED, LOW);
   }
   if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
-  if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !warningLamp) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
-  if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !warningLamp) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
+  if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !errorLocal) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
+  if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !errorLocal) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
 
   digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);  // Update pins to reflect internal state variables
   digitalWrite(PHONE_SIG_OUT_LED, phoneSigOut);
@@ -458,23 +458,23 @@ void onReceiveHeartbeat() {
 }
 
 void throwError(char errorMessage[]) {
-  if (!warningLamp) udpSend('e');  // Tell the paired station that we have experienced an error
-  warningLamp = true;
+  if (!errorLocal) udpSend('e');  // Tell the paired station that we have experienced an error
+  errorLocal = true;
   Serial.print(errorMessage);
   Serial.print("\n  There has been a error @: ");
   Serial.println(millis());
-  digitalWrite(WARNING_LAMP_RLY, warningLamp);
-  digitalWrite(WARNING_LAMP_LED, warningLamp);
+  digitalWrite(ERROR_LOCAL_RLY, errorLocal);
+  digitalWrite(ERROR_LOCAL_LED, errorLocal);
 }
 
 void onErrorAck() {
-  if (!warningLamp) return;
-  warningLamp = false;
+  if (!errorLocal) return;
+  errorLocal = false;
   unAcknowledgedTelegraphPackets = 0;
   Serial.print("Error has been acknowledged @");
   Serial.println(millis());
-  digitalWrite(WARNING_LAMP_RLY, warningLamp);
-  digitalWrite(WARNING_LAMP_LED, warningLamp);
+  digitalWrite(ERROR_LOCAL_RLY, errorLocal);
+  digitalWrite(ERROR_LOCAL_LED, errorLocal);
 }
 
 void initDipPins(uint8_t pins[], uint8_t count) {
