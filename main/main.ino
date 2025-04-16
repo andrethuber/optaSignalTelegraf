@@ -70,6 +70,10 @@ TODO:
   - Logging
   - Remote error reporting (sms/email)
   - Handle 'millis' overflow
+  - Remove rings for error and hold telegraph button for ack
+  - Add outputs for errorRemote and errorLocal, and ackAll and ackLocal inputs
+  - Make send 'H' if not in error and 'h' if in error
+  - Make phone signal send 'P' continiustly whilst active, insted of toggling with 'P' and 'p'
 */
 
 bool blink = true;
