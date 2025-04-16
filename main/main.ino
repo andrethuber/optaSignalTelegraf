@@ -5,23 +5,23 @@
 #define TELEGRAPH_SIG_OUT_RLY D0      // pinID, relay output used to send a signal on the telegraph wire.
 #define TELEGRAPH_SIG_OUT_LED LED_D0  // pinID, relay output used to send a signal on the telegraph wire.
 #define ERROR_ACK_PIN A1              // pinID, digital input to ack a error.
-#define ERROR_LOCAL_RLY D1           // pinID, relay output used to signal that controller is in error state.
-#define ERROR_LOCAL_LED LED_D1       // pinID, relay output used to signal that controller is in error state.
+#define ERROR_LOCAL_RLY D1            // pinID, relay output used to signal that controller is in error state.
+#define ERROR_LOCAL_LED LED_D1        // pinID, relay output used to signal that controller is in error state.
 #define PHONE_SIG_IN_PIN A2           // pinID, Connected to the output of the spindle.
 #define PHONE_SIG_OUT_RLY D2          // pinID, Connected to the phone bell
 #define PHONE_SIG_OUT_LED LED_D2      // pinID
 #define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
 
 
-#define MAX_PING 100                                  // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
-#define HEARTBEAT_RATE 1000                           // ms, Time delay between sending heartbeat packets.
-#define MAX_TIME_NO_HEARTBEAT 5000                    // ms, Time allowed without receiving heartbeat packets before locking.
-#define T_SIGNAL_ON_TIME 100                          // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 20                            // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
-#define BOUNCE_TIME 20                                // ms, maximum possible bounce time for inputs
-#define PHONE_SIG_THRESHOLD 100                       // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
-#define PHONE_SIG_SAMPLE_RATE 50                      // ms, Sample rate for phone signal.
-#define PACKET_MAX_SIZE 1                             // bytes, how many bytes we allow to parce for recieving UDP packets.
+#define MAX_PING 100                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
+#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
+#define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
+#define INPUTLOCK_DELAY 20          // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
+#define BOUNCE_TIME 20              // ms, maximum possible bounce time for inputs
+#define PHONE_SIG_THRESHOLD 100     // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
+#define PHONE_SIG_SAMPLE_RATE 50    // ms, Sample rate for phone signal.
+#define PACKET_MAX_SIZE 1           // bytes, how many bytes we allow to parce for recieving UDP packets.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -389,7 +389,7 @@ void loop() {
     digitalWrite(TELEGRAPH_SIG_OUT_RLY, LOW);
     digitalWrite(TELEGRAPH_SIG_OUT_LED, LOW);
   }
-  if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                     // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
+  if (millis() - lastTelegraphSigOut > T_SIGNAL_ON_TIME + INPUTLOCK_DELAY) inputLock = false;                                                    // Resets 'inputLock' after 'telegraphSigIn' relay has had time to open.
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !errorLocal) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !errorLocal) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
 
