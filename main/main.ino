@@ -143,8 +143,8 @@ IPAddress remoteServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a r
 const uint8_t pairedControllers[][2]{ // A table to define pairs
                                       { null, null },
                                       { testA, testB },
-                                      { garnesB, arnaA },
-                                      { arnaB, haukelandA },
+                                      { garnesB, haukelandA},
+                                      { arnaB, arnaA },
                                       { haukelandB, garnesA },
                                       { testC, testD }
 };  // (Dont argue with the linter)
