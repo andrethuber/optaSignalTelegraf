@@ -13,7 +13,7 @@
 #define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
 
 
-#define MAX_PING 100                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define MAX_PING 500                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
 #define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
 #define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
 #define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
@@ -143,7 +143,7 @@ IPAddress remoteServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a r
 const uint8_t pairedControllers[][2]{ // A table to define pairs
                                       { null, null },
                                       { testA, testB },
-                                      { garnesB, haukelandA},
+                                      { garnesB, haukelandA },
                                       { arnaB, arnaA },
                                       { haukelandB, garnesA },
                                       { testC, testD }
@@ -449,6 +449,8 @@ void onRecieveAcknowledgement() {
   lastAcknowledgement = millis();
   unAcknowledgedTelegraphPackets--;
   Serial.println("Recived acknowledgement!");
+  Serial.print("  ping: ");
+  Serial.println(millis() - lastTelegraphPacket);
   Serial.print("  'unAcknowledgedTelegraphPackets' = ");
   Serial.println(unAcknowledgedTelegraphPackets);
 }
