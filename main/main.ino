@@ -42,6 +42,12 @@
     Phone spindle - Hand crack that operator spins in order to dial the code for another station.
     timestamp variable - Variables of type 'unsined long' that stores the return values of 'millis()'
     Remote server - A remote server that recievs heartbeats and error messages from all controllers.
+    Line - Term for the intire telegraph line, from end station to end station. All controllers on the same "line" share error remote.
+      There is to be made no connections betweenm lines, only TXPs/operators can transfer information between lines.
+    Phone line - Term for the phone line, can include fewer controllers then line, but should not include any controllers from outside the same line.
+      IE, a line can have multiple phone lines. If a phone line goes beond the reaches of the line, there is no garantee of signal integrity.
+    Error local - A boolean state variable that indicates whether or not this controller has expirienced a error.
+    Error remote - A boolean state variable that indicates whether or not any controllers on the line has expirienced a error.
 
   Codes:
     't' = Telegraph packet
