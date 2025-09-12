@@ -10,6 +10,8 @@
 #define PHONE_SIG_IN_PIN A2           // pinID, Connected to the output of the spindle.
 #define PHONE_SIG_OUT_RLY D2          // pinID, Connected to the phone bell
 #define PHONE_SIG_OUT_LED LED_D2      // pinID
+#define ERROR_REMOTE_RLY D3           // pinID, Temporary output for remote error, final sollution will be on Q2, and differentiate with fast/slow blinks
+#define ERROR_REMOTE_LED LED_D3       // pinID
 #define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
 
 
@@ -55,7 +57,7 @@
     'b' = Aborted sending packet because bouncing detected
     'i' = Aborted sending packet because 'inputLock' is true (usually when receiving a signal)
     'e' = General error
-    'h' = heartbeat, gets sent every ~1 sec
+    'H'/'h' = Healthy/unhealthy heartbeat, gets sent every ~1 sec, if controller is not or is in in error local.
     'P'/'p' = Phone packets, capital case for rising, and lower case for falling.
 
   I/O:
@@ -66,7 +68,7 @@
     Q1 - 'telegraphSigOut'
     Q2 - 'errorLocal'
     Q3 - 'phoneSigOut'
-    Q4 - unused
+    Q4 - 'errorRemote'
 
 TODO:
   - OTA
@@ -157,6 +159,7 @@ const uint8_t pairedControllers[][2]{ // A table to define pairs
 
 
 bool errorLocal = true;
+bool errorRemote = true;
 
 bool previousTelegraphSigIn;
 bool inputLock;
@@ -296,6 +299,10 @@ void setup() {
   verbosePinMode(PHONE_SIG_OUT_RLY, OUTPUT);
   verbosePinMode(PHONE_SIG_OUT_LED, OUTPUT);
 
+  // Error remote signal:
+  verbosePinMode(ERROR_LOCAL_RLY, OUTPUT);
+  verbosePinMode(ERROR_LOCAL_LED, OUTPUT);
+
   Serial.println();
 
   udpSendAll(analogRead(PHONE_SIG_IN_PIN) > PHONE_SIG_THRESHOLD ? 'P' : 'p');  // Send 'P' if phone spindle is spinning and 'p' if not spinning.
@@ -353,8 +360,11 @@ void loop() {
     }
 
     switch (packetBuffer[0]) {
+      case 'H':
+        onReceiveHeartbeat(true);  // Process healthy heartbeat
+        break;
       case 'h':
-        onReceiveHeartbeat();  // Process heartbeat
+        onReceiveHeartbeat(false);  // Process unhealthy heartbeat
         break;
       case 'e':
         throwError("WARN: Paired station has experienced a error!");  // Process error packet
@@ -382,7 +392,7 @@ void loop() {
 
   if (millis() - lastHeartBeatSent > HEARTBEAT_RATE) {  // Sends heartbeats
     lastHeartBeatSent = millis();
-    udpSend('h');
+    udpSend(errorLocal ? 'h' : 'H');
     digitalWrite(BLINK_LED, blink);  // Toggle blink led
     blink = !blink;
     udp.beginPacket(remoteServerIp, PORT);
@@ -399,8 +409,13 @@ void loop() {
   if (millis() - lastHeartBeatReceived > MAX_TIME_NO_HEARTBEAT && !errorLocal) throwError("WARN: Heartbeat lost!");                              // Errors if does not receive any heatbeats in enough time
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !errorLocal) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
 
-  digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);  // Update pins to reflect internal state variables
+
+  digitalWrite(ERROR_LOCAL_RLY, errorLocal);  // Update pins to reflect internal state variables
+  digitalWrite(ERROR_LOCAL_LED, errorLocal);
+  digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);
   digitalWrite(PHONE_SIG_OUT_LED, phoneSigOut);
+  digitalWrite(ERROR_REMOTE_RLY, errorRemote);
+  digitalWrite(ERROR_REMOTE_LED, errorRemote);
 }
 
 
@@ -461,18 +476,16 @@ void onRecieveAcknowledgement() {
   Serial.println(unAcknowledgedTelegraphPackets);
 }
 
-void onReceiveHeartbeat() {
+void onReceiveHeartbeat(bool healthy) {
   lastHeartBeatReceived = millis();
+  errorRemote = !healthy;
 }
 
 void throwError(char errorMessage[]) {
-  if (!errorLocal) udpSend('e');  // Tell the paired station that we have experienced an error
   errorLocal = true;
   Serial.print(errorMessage);
   Serial.print("\n  There has been a error @: ");
   Serial.println(millis());
-  digitalWrite(ERROR_LOCAL_RLY, errorLocal);
-  digitalWrite(ERROR_LOCAL_LED, errorLocal);
 }
 
 void onErrorAck() {
@@ -481,8 +494,6 @@ void onErrorAck() {
   unAcknowledgedTelegraphPackets = 0;
   Serial.print("Error has been acknowledged @");
   Serial.println(millis());
-  digitalWrite(ERROR_LOCAL_RLY, errorLocal);
-  digitalWrite(ERROR_LOCAL_LED, errorLocal);
 }
 
 void initDipPins(uint8_t pins[], uint8_t count) {
