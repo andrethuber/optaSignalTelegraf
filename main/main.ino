@@ -32,6 +32,7 @@
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 
+#include CONFIG_PATH
 
 /* Documentaion
 
@@ -83,79 +84,7 @@ TODO:
 
 bool blink = true;
 
-uint8_t dipPins[] = { A3, A4, A5, A6, A7 };  // Pins used to configure IP address (like a dip switch)
-
-enum controllers {  //
-  null,
-  testA,
-  testB,
-  garnesA,
-  garnesB,
-  arnaA,
-  arnaB,
-  haukelandA,
-  haukelandB,
-  testC,
-  testD
-};
-
-uint8_t localID;
 char localIDChar[33];  // Seemed to work with a size of 0, but im scared it might be overflowing and using memory addresses it shouldent, witch might cause other problems later.
-uint8_t pairedID;
-
-IPAddress ipAddresses[] = {
-  { 0, 0, 0, 0 },       // Null IP address
-  { 10, 3, 2, 50 },     // Test A (to TestB)
-  { 10, 3, 2, 51 },     // Test B (to TestA)
-  { 10, 1, 2, 60 },     // Garnes A (to Haukeland B)
-  { 10, 1, 2, 61 },     // Garnes B (to Arna A)
-  { 10, 2, 2, 60 },     // Arna A (to Garnes B)
-  { 10, 2, 2, 62 },     // Arna B (to Haukeland A)
-  { 10, 3, 2, 60 },     // Haukeland A (to Arna B)
-  { 10, 3, 2, 61 },     // Haulekand B (to Garnes A)
-  { 192, 168, 1, 50 },  // Test C (to testD)
-  { 192, 168, 1, 51 }   // Test D (to testC)
-};
-
-IPAddress gateways[] = {
-  { 0, 0, 0, 0 },      // Null
-  { 10, 3, 2, 1 },     // Test A
-  { 10, 3, 2, 1 },     // Test B
-  { 10, 1, 2, 1 },     // Garnes A
-  { 10, 1, 2, 1 },     // Garnes B
-  { 10, 2, 2, 1 },     // Arna A
-  { 10, 2, 2, 1 },     // Arna B
-  { 10, 3, 2, 1 },     // Haukeland A
-  { 10, 3, 2, 1 },     // Haulekand B
-  { 192, 168, 1, 1 },  // Test C
-  { 192, 168, 1, 1 }   // Test D
-};
-
-byte macAddresses[][6] = {
-  // 'Ethernet.begin()' wants a MAC address as a argument, but it dosent seem to acually want to use it, as 'Ethernet.MACAddress()' returns something else.
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x00 },  // Null
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x01 },  // Test A
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x02 },  // Test B
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x03 },  // Garnes A
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x04 },  // Garnes B
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x05 },  // Arna A
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x06 },  // Arna B
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x07 },  // Haukeland A
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x08 },  // Haukeland B
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x09 },  // Test C
-  { 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0x0a }   // Test E
-};
-
-IPAddress remoteServerIp = { 172, 30, 1, 12 };  // IP address, IP address of a remote server to also recive heartbeats.
-
-const uint8_t pairedControllers[][2]{ // A table to define pairs
-                                      { null, null },
-                                      { testA, testB },
-                                      { garnesB, haukelandA },
-                                      { arnaB, arnaA },
-                                      { haukelandB, garnesA },
-                                      { testC, testD }
-};  // (Dont argue with the linter)
 
 
 bool errorLocal = true;
@@ -191,42 +120,6 @@ void setup() {
   delay(2000);  // To give time for serial to establish.
   Serial.println("\nSerial begun.");
 
-
-  // Figure out ID of paired controller:
-  initDipPins(dipPins, LENOF(dipPins));
-  Serial.print("'dipPins': ");
-  uint8_t dipValue = readDipPins(dipPins, LENOF(dipPins));  // Decimal interpretation of dip pins
-  Serial.print("'dipValue' = ");
-  Serial.println(dipValue);
-  localID = dipValue;  // Sets the local id before checks, so it can be overwritten if they fail.
-
-  if (LENOF(ipAddresses) + LENOF(gateways) + LENOF(macAddresses) == LENOF(ipAddresses) * 3) {
-    Serial.print("PASS: All lookup tables have the same number of eneries: ");
-    Serial.println(LENOF(ipAddresses));
-  } else {
-    localID = 0;
-    throwError("FAIL: not all lookup tables have the same value.");
-    Serial.print("'ipAddresses' = ");
-    Serial.println(LENOF(ipAddresses));
-    Serial.print("'gateways' = ");
-    Serial.println(LENOF(gateways));
-    Serial.print("'macAddresses' = ");
-    Serial.println(LENOF(macAddresses));
-  }
-
-  if (dipValue <= LENOF(ipAddresses) - 1) {
-    Serial.print("PASS: 'dipValue' is within bounds: ");
-    Serial.print(dipValue);
-    Serial.print(" / ");
-    Serial.println(LENOF(ipAddresses) - 1);
-  } else {
-    localID = 0;
-    throwError("FAIL: 'localID' out of bounds! (or 'ipAddresses' has too few entries)");
-  }
-
-  // 'dipValue' should not be used below here.
-
-
   Serial.print("'localID' = ");
   Serial.println(localID);
 
@@ -235,13 +128,12 @@ void setup() {
   Serial.print(localIDChar);
   Serial.println("\"");
 
-  pairedID = findPaired(localID);
   Serial.print("'pairedID' = ");
   Serial.println(pairedID);
 
 
   // Ethernet/Udp:
-  Ethernet.begin(macAddresses[localID], ipAddresses[localID], gateways[localID], gateways[localID]);
+  Ethernet.begin(macAddress, ipAddresses[localID], localGateway, localGateway);
   Serial.println("Ethernet begun.");
 
   if (Ethernet.hardwareStatus() != EthernetNoHardware) {
@@ -494,37 +386,6 @@ void onErrorAck() {
   unAcknowledgedTelegraphPackets = 0;
   Serial.print("Error has been acknowledged @");
   Serial.println(millis());
-}
-
-void initDipPins(uint8_t pins[], uint8_t count) {
-  for (uint8_t i = 0; i < count; i++) {
-    pinMode(pins[i], INPUT);
-  }
-}
-
-uint8_t readDipPins(uint8_t pins[], uint8_t count) {
-  bool states[count];
-  uint8_t value = 0;
-  for (uint8_t i = 0; i < count; i++) {
-    states[i] = digitalRead(pins[i]);
-    value = value + pow(2, count - 1 - i) * states[i];
-    Serial.print(digitalRead(pins[i]));
-    Serial.print(", ");
-  }
-  return value;
-}
-
-uint8_t findPaired(uint8_t localID) {                          // Figure out the ID of the controller in the same pair as this controller
-  for (uint8_t i1 = 0; i1 < LENOF(pairedControllers); i1++) {  // for each pair
-
-    for (bool i2 = 0;; i2++) {  // for each controller in a pair
-      if (pairedControllers[i1][i2] == localID) {
-        return (pairedControllers[i1][!i2]);
-      }
-      if (i2) break;  // if has done 2. loop
-    }
-  }
-  return (0);
 }
 
 void verbosePinMode(pin_size_t pin, PinMode mode) {
