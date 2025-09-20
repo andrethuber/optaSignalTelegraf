@@ -7,12 +7,12 @@
 #define ERROR_LOCAL_ACK_PIN A1        // pinID, digital input to ack a error.
 #define ERROR_LOCAL_RLY D1            // pinID, relay output used to signal that controller is in error state.
 #define ERROR_LOCAL_LED LED_D1        // pinID, relay output used to signal that controller is in error state.
-#define PHONE_SIG_IN_PIN A2           // pinID, Connected to the output of the spindle.
-#define PHONE_SIG_OUT_RLY D2          // pinID, Connected to the phone bell
-#define PHONE_SIG_OUT_LED LED_D2      // pinID
-#define ERROR_REMOTE_ACK_PIN A3       // pinID, pin to ack errors on all controllers on the line.
-#define ERROR_REMOTE_RLY D3           // pinID, Temporary output for remote error, final sollution will be on Q2, and differentiate with fast/slow blinks
-#define ERROR_REMOTE_LED LED_D3       // pinID
+#define ERROR_REMOTE_ACK_PIN A2       // pinID, pin to ack errors on all controllers on the line.
+#define ERROR_REMOTE_RLY D2           // pinID, Temporary output for remote error, final sollution will be on Q2, and differentiate with fast/slow blinks
+#define ERROR_REMOTE_LED LED_D2       // pinID
+#define PHONE_SIG_IN_PIN A3           // pinID, Connected to the output of the spindle.
+#define PHONE_SIG_OUT_RLY D3          // pinID, Connected to the phone bell
+#define PHONE_SIG_OUT_LED LED_D3      // pinID
 #define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
 
 
@@ -193,15 +193,15 @@ void setup() {
   verbosePinMode(ERROR_LOCAL_RLY, OUTPUT);
   verbosePinMode(ERROR_LOCAL_LED, OUTPUT);
 
-  // Phone in/out:
-  verbosePinMode(PHONE_SIG_IN_PIN, INPUT);
-  verbosePinMode(PHONE_SIG_OUT_RLY, OUTPUT);
-  verbosePinMode(PHONE_SIG_OUT_LED, OUTPUT);
-
   // Error remote:
   verbosePinMode(ERROR_REMOTE_ACK_PIN, INPUT);
   verbosePinMode(ERROR_LOCAL_RLY, OUTPUT);
   verbosePinMode(ERROR_LOCAL_LED, OUTPUT);
+
+  // Phone in/out:
+  verbosePinMode(PHONE_SIG_IN_PIN, INPUT);
+  verbosePinMode(PHONE_SIG_OUT_RLY, OUTPUT);
+  verbosePinMode(PHONE_SIG_OUT_LED, OUTPUT);
 
   Serial.println();
 
@@ -240,8 +240,8 @@ void loop() {
   }
 
   // Process 'errorAckBtn' press:
-  if (digitalRead(ERROR_LOCAL_ACK_PIN)) errorLocalAck();  // Triggers 'onErrorAck' if error ack button is pressed
-  if (digitalRead(ERROR_REMOTE_ACK_PIN)) errorRemoteAck();
+  if (digitalRead(ERROR_LOCAL_ACK_PIN)) errorLocalAck();    // Acks error localy.
+  if (digitalRead(ERROR_REMOTE_ACK_PIN)) errorRemoteAck();  // Sends 'r' to all controllers on line to remotely ack errors.
 
 
 
@@ -272,7 +272,7 @@ void loop() {
         onReceiveHeartbeat(false, packetSize);  // Process unhealthy heartbeat
         break;
       case 'e':
-        throwError("WARN: Paired station has experienced a error!");  // Process error packet
+        throwError("WARN: Recived 'e' packet!");  // Process error packet
         break;
       case 'r':
         errorLocalAck();
@@ -313,7 +313,8 @@ void loop() {
   if (millis() - lastTelegraphPacket > MAX_PING && unAcknowledgedTelegraphPackets != 0 && !errorLocal) throwError("WARN: No acknowledgement!");  // Errors if does not receive an acknowledgement in time
 
 
-  errorRemote = false;                                                               // 'errorRemote' gets set to false in following for loop if any controllers report unhealthy.
+  errorRemote = false;  // 'errorRemote' gets set to true in each 'void loop' and false in following for loop if any controllers report unhealthy.
+
   for (uint8_t lineController = 0; lineController < lineLength; lineController++) {  // Check heartbeats
     if (lineController == localID) continue;
 
@@ -331,10 +332,10 @@ void loop() {
 
   digitalWrite(ERROR_LOCAL_RLY, errorLocal);  // Update pins to reflect internal state variables
   digitalWrite(ERROR_LOCAL_LED, errorLocal);
-  digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);
-  digitalWrite(PHONE_SIG_OUT_LED, phoneSigOut);
   digitalWrite(ERROR_REMOTE_RLY, errorRemote);
   digitalWrite(ERROR_REMOTE_LED, errorRemote);
+  digitalWrite(PHONE_SIG_OUT_RLY, phoneSigOut);
+  digitalWrite(PHONE_SIG_OUT_LED, phoneSigOut);
 }
 
 
@@ -425,7 +426,6 @@ void errorLocalAck() {
 void errorRemoteAck() {
   udpSend('r');
 }
-
 
 void verbosePinMode(pin_size_t pin, PinMode mode) {
   Serial.print(pin);
