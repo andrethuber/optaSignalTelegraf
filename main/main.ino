@@ -4,12 +4,13 @@
 #define TELEGRAPH_SIG_IN_PIN A0       // pinID, digital input used to listen on the telegraph wire.
 #define TELEGRAPH_SIG_OUT_RLY D0      // pinID, relay output used to send a signal on the telegraph wire.
 #define TELEGRAPH_SIG_OUT_LED LED_D0  // pinID, relay output used to send a signal on the telegraph wire.
-#define ERROR_ACK_PIN A1              // pinID, digital input to ack a error.
+#define ERROR_LOCAL_ACK_PIN A1        // pinID, digital input to ack a error.
 #define ERROR_LOCAL_RLY D1            // pinID, relay output used to signal that controller is in error state.
 #define ERROR_LOCAL_LED LED_D1        // pinID, relay output used to signal that controller is in error state.
 #define PHONE_SIG_IN_PIN A2           // pinID, Connected to the output of the spindle.
 #define PHONE_SIG_OUT_RLY D2          // pinID, Connected to the phone bell
 #define PHONE_SIG_OUT_LED LED_D2      // pinID
+#define ERROR_REMOTE_ACK_PIN A3       // pinID, pin to ack errors on all controllers on the line.
 #define ERROR_REMOTE_RLY D3           // pinID, Temporary output for remote error, final sollution will be on Q2, and differentiate with fast/slow blinks
 #define ERROR_REMOTE_LED LED_D3       // pinID
 #define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
@@ -50,7 +51,7 @@
     Phone line - Term for the phone line, can include fewer controllers then line, but should not include any controllers from outside the same line.
       IE, a line can have multiple phone lines. If a phone line goes beond the reaches of the line, there is no garantee of signal integrity.
     Error local - A boolean state variable that indicates whether or not this controller has expirienced a error.
-    Error remote - A boolean state variable that indicates whether or not any controllers on the line has expirienced a error.
+    Error remote / Error line - A boolean state variable that indicates whether or not any controllers on the line has expirienced a error.
 
   Codes:
     't' = Telegraph packet
@@ -58,14 +59,15 @@
     'b' = Aborted sending packet because bouncing detected
     'i' = Aborted sending packet because 'inputLock' is true (usually when receiving a signal)
     'e' = General error
+    'r' = Release error / Error acknowledged on intire line
     'H'/'h' = Healthy/unhealthy heartbeat, gets sent every ~1 sec, if controller is not or is in in error local.
     'P'/'p' = Phone packets, capital case for rising, and lower case for falling.
 
   I/O:
     I1 - 'telegraphSigIn'
-    I2 - 'onErrorAck()'
+    I2 - 'ackErrorLocal'
     I3 - 'phoneSigIn'
-    I4...I8 - Confuguration dip pins
+    I4 - 'ackErrorLine'
     Q1 - 'telegraphSigOut'
     Q2 - 'errorLocal'
     Q3 - 'phoneSigOut'
@@ -186,10 +188,8 @@ void setup() {
   verbosePinMode(TELEGRAPH_SIG_OUT_RLY, OUTPUT);
   verbosePinMode(TELEGRAPH_SIG_OUT_LED, OUTPUT);
 
-  // Error acknowledge button:
-  verbosePinMode(ERROR_ACK_PIN, INPUT);
-
-  // Error local signal:
+  // Error local:
+  verbosePinMode(ERROR_LOCAL_ACK_PIN, INPUT);
   verbosePinMode(ERROR_LOCAL_RLY, OUTPUT);
   verbosePinMode(ERROR_LOCAL_LED, OUTPUT);
 
@@ -198,7 +198,8 @@ void setup() {
   verbosePinMode(PHONE_SIG_OUT_RLY, OUTPUT);
   verbosePinMode(PHONE_SIG_OUT_LED, OUTPUT);
 
-  // Error remote signal:
+  // Error remote:
+  verbosePinMode(ERROR_REMOTE_ACK_PIN, INPUT);
   verbosePinMode(ERROR_LOCAL_RLY, OUTPUT);
   verbosePinMode(ERROR_LOCAL_LED, OUTPUT);
 
@@ -239,7 +240,8 @@ void loop() {
   }
 
   // Process 'errorAckBtn' press:
-  if (digitalRead(ERROR_ACK_PIN)) onErrorAck();  // Triggers 'onErrorAck' if error ack button is pressed
+  if (digitalRead(ERROR_LOCAL_ACK_PIN)) errorLocalAck();  // Triggers 'onErrorAck' if error ack button is pressed
+  if (digitalRead(ERROR_REMOTE_ACK_PIN)) errorRemoteAck();
 
 
 
@@ -271,6 +273,9 @@ void loop() {
         break;
       case 'e':
         throwError("WARN: Paired station has experienced a error!");  // Process error packet
+        break;
+      case 'r':
+        errorLocalAck();
         break;
       case 't':
         onReceiveTelegraphPacket();  // Process telegraph packet
@@ -409,13 +414,18 @@ void throwError(char errorMessage[]) {
   Serial.println(millis());
 }
 
-void onErrorAck() {
+void errorLocalAck() {
   if (!errorLocal) return;
   errorLocal = false;
   unAcknowledgedTelegraphPackets = 0;
   Serial.print("Error has been acknowledged @");
   Serial.println(millis());
 }
+
+void errorRemoteAck() {
+  udpSend('r');
+}
+
 
 void verbosePinMode(pin_size_t pin, PinMode mode) {
   Serial.print(pin);
