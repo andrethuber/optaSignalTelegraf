@@ -33,6 +33,9 @@
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 
+#ifndef CONFIG_PATH
+  #define CONFIG_PATH "nullCfg.h"
+#endif
 #include CONFIG_PATH
 
 /* Documentaion
