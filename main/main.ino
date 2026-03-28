@@ -126,24 +126,6 @@ void setup() {
   delay(2000);  // To give time for serial to establish.
   Serial.println("\nSerial begun.");
 
-  Serial.print("'localID' = ");
-  Serial.println(localID);
-
-  sprintf(localIDChar, "%d", localID);
-  Serial.print("'localIDChar = \"");
-  Serial.print(localIDChar);
-  Serial.println("\"");
-
-  Serial.print("'pairedID' = ");
-  Serial.println(pairedID);
-
-  Serial.print("'lineName' = ");
-  Serial.println(lineName);
-
-  Serial.print("'lineLenght' = ");
-  Serial.println(lineLength);
-
-
   // Ethernet/Udp:
   Ethernet.begin(macAddress, ipAddresses[localID], localGateway, localGateway);
   Serial.println("Ethernet begun.");
@@ -161,6 +143,23 @@ void setup() {
     throwError("FAIL: Ethernet link is off: ");
   }
   Serial.println(Ethernet.linkStatus());
+
+  Serial.print("'localID' = ");
+  Serial.println(localID);
+
+  sprintf(localIDChar, "%d", localID);
+  Serial.print("'localIDChar = \"");
+  Serial.print(localIDChar);
+  Serial.println("\"");
+
+  Serial.print("'pairedID' = ");
+  Serial.println(pairedID);
+
+  Serial.print("'lineName' = ");
+  Serial.println(lineName);
+
+  Serial.print("'lineLenght' = ");
+  Serial.println(lineLength);
 
   Serial.print("\nLocal IP: ");
   Serial.println(Ethernet.localIP());
