@@ -9,7 +9,9 @@ enum lineControllers {
 const uint8_t localID = null;
 const uint8_t pairedID = null;
 
-const char lineName = "null";
+const uint8_t lineLength = 0;
+
+const char lineName[] = "null";
 
 IPAddress ipAddresses[] = {
   { 0, 0, 0, 0 }  // null
