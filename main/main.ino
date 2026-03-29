@@ -16,15 +16,16 @@
 #define BLINK_LED LED_RESET           // pinId, The led used for indicating a local heartbeat
 
 
-#define MAX_PING 500                // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
-#define HEARTBEAT_RATE 1000         // ms, Time delay between sending heartbeat packets.
-#define MAX_TIME_NO_HEARTBEAT 5000  // ms, Time allowed without receiving heartbeat packets before locking.
-#define T_SIGNAL_ON_TIME 100        // ms, Time delay between closing and opening 'telegraphSigOut' relay
-#define INPUTLOCK_DELAY 20          // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
-#define BOUNCE_TIME 20              // ms, maximum possible bounce time for inputs
-#define PHONE_SIG_THRESHOLD 100     // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
-#define PHONE_SIG_SAMPLE_RATE 50    // ms, Sample rate for phone signal.
-#define PACKET_MAX_SIZE 2           // bytes, how many bytes we allow to parce for recieving UDP packets.
+#define MAX_PING 500                      // ms, Maximum permissable delay from sending a telegraph packet to receive an acknowledgement.
+#define HEARTBEAT_RATE 1000               // ms, Time delay between sending heartbeat packets.
+#define MAX_TIME_NO_HEARTBEAT 5000        // ms, Time allowed without receiving heartbeat packets before locking.
+#define T_SIGNAL_ON_TIME 100              // ms, Time delay between closing and opening 'telegraphSigOut' relay
+#define INPUTLOCK_DELAY 20                // ms, The time where 'inputLock' is true but 'telegraphSigOut' is false, to account for off-time off relays
+#define BOUNCE_TIME 20                    // ms, maximum possible bounce time for inputs
+#define PHONE_SIG_THRESHOLD 100           // (5 / 1024 V), Threshold for determening whether phone signal is high or low.
+#define PHONE_SIG_SAMPLE_RATE 50          // ms, Sample rate for phone signal.
+#define PACKET_MAX_SIZE 2                 // bytes, how many bytes we allow to parce for recieving UDP packets.
+#define ERROR_LOCAL_TO_REMOTE_DELAY 5000  //ms, time for 'erorrLocalAck' button to be pressed for it to ack remote erros aswell.
 
 #define PORT 8888  // Port that the controllers send and listen on.
 
@@ -34,7 +35,7 @@
 #include <EthernetUdp.h>
 
 #ifndef CONFIG_PATH
-  #define CONFIG_PATH "nullCfg.h"
+#define CONFIG_PATH "nullCfg.h"
 #endif
 #include CONFIG_PATH
 
@@ -94,6 +95,9 @@ char localIDChar[33];  // Seemed to work with a size of 0, but im scared it migh
 
 bool errorLocal = true;
 bool errorRemote = true;
+bool previousErrorLocalAckSigIn;
+unsigned long lastErrorLocalAckSigInRise;
+bool hasErrorRemoteAcked;  // If has sent called 'errorRemoteAck' function during this instance of holding localErrorAck btn.
 
 bool previousTelegraphSigIn;
 bool inputLock;
@@ -245,6 +249,12 @@ void loop() {
   if (digitalRead(ERROR_LOCAL_ACK_PIN)) errorLocalAck();    // Acks error localy.
   if (digitalRead(ERROR_REMOTE_ACK_PIN)) errorRemoteAck();  // Sends 'r' to all controllers on line to remotely ack errors.
 
+  bool errorLocalAckSigIn = digitalRead(ERROR_LOCAL_ACK_PIN);
+  if (errorLocalAckSigIn > previousErrorLocalAckSigIn) lastErrorLocalAckSigInRise = millis();  // Saves the timestamp of the last rising edge for errorLocalAck btn.
+  if (millis() - lastErrorLocalAckSigInRise > ERROR_LOCAL_TO_REMOTE_DELAY && errorLocalAckSigIn && !errorLocal && !hasErrorRemoteAcked ) errorRemoteAck();  // Calls the 'errorRemoteAck' function if errorLocalAck btn has been held down long enugh.
+  if (errorLocalAckSigIn < previousErrorLocalAckSigIn) hasErrorRemoteAcked = false;  // Resets 'hasErrorRemoteAcked' on falling edge of errorLocalAck btn.
+
+  previousErrorLocalAckSigIn = errorLocalAckSigIn;  // To detect a rising edge.
 
 
   // What to do when a udp packet is received:
@@ -426,7 +436,12 @@ void errorLocalAck() {
 }
 
 void errorRemoteAck() {
-  udpSend('r');
+  if (errorLocal) {
+    throwError("WARN: Atempted to ack remote error whilst in local error!");
+    return;
+  }
+  hasErrorRemoteAcked = true;
+  udpSendLine('r');
 }
 
 void verbosePinMode(pin_size_t pin, PinMode mode) {
